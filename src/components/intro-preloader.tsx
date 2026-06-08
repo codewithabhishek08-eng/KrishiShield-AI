@@ -1,11 +1,10 @@
-
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Volume2, VolumeX, ArrowRight, Mail } from 'lucide-react';
+import { Volume2, VolumeX, ArrowRight } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -22,6 +21,16 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const [active, setActive] = useState(true);
   const [muted, setMuted] = useState(true);
   
+  // Hydration fix: dimensions should be set after mount
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    setDimensions({
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+  }, []);
+
   // Custom Cursor State
   const cursorRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const cursorTrailRef = useRef<{ x: number, y: number }[]>([]);
@@ -327,7 +336,12 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   return (
     <div className={`fixed inset-0 z-[2000] bg-[#0A0F0A] overflow-hidden transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
       <div ref={containerRef} className="absolute inset-0 preloader-canvas" />
-      <canvas ref={canvasOverlayRef} className="absolute inset-0 pointer-events-none z-50" width={typeof window !== 'undefined' ? window.innerWidth : 0} height={typeof window !== 'undefined' ? window.innerHeight : 0} />
+      <canvas 
+        ref={canvasOverlayRef} 
+        className="absolute inset-0 pointer-events-none z-50" 
+        width={dimensions.width} 
+        height={dimensions.height} 
+      />
       
       {/* HUD & UI */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none preloader-ui z-40">
@@ -378,29 +392,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         </button>
       </div>
 
-      {/* FINAL CTA SECTION (Integrated Particle Field) */}
-      <section className="hidden absolute inset-0 bg-[#050805] z-[100] flex-col items-center justify-center p-24">
-         <div className="max-w-4xl text-center space-y-12">
-            <h2 className="text-[clamp(3rem,8vw,7rem)] font-headline font-black leading-[0.9] tracking-tighter text-white">
-              YOUR HARVEST.<br/>
-              <span className="opacity-60">YOUR PRICE.</span><br/>
-              YOUR TERMS.
-            </h2>
-            
-            <div className="relative w-full max-w-md mx-auto group">
-              <input 
-                type="email" 
-                placeholder="Enter email for early access"
-                className="w-full bg-transparent border-none text-white text-lg py-4 focus:outline-none placeholder:text-white/20"
-              />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-primary transition-all duration-700 group-focus-within:w-full" />
-              <button className="absolute right-0 top-1/2 -translate-y-1/2 text-primary">
-                <ArrowRight size={24} />
-              </button>
-            </div>
-         </div>
-      </section>
-
       <style jsx global>{`
         .cta-border {
           stroke-dasharray: 800;
@@ -415,4 +406,3 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     </div>
   );
 }
-
