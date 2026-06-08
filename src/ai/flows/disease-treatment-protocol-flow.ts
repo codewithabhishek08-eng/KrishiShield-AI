@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for generating step-by-step treatment protocols for plant diseases.
@@ -34,8 +35,8 @@ const prompt = ai.definePrompt({
   name: 'diseaseTreatmentProtocolPrompt',
   input: {schema: DiseaseTreatmentProtocolInputSchema},
   output: {schema: DiseaseTreatmentProtocolOutputSchema},
+  model: 'groq/llama-3.3-70b-versatile',
   config: {
-    model: 'googleai/gemini-2.5-flash',
     temperature: 0.4,
   },
   prompt: `You are an expert agricultural advisor.

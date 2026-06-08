@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to generate AI-powered market signal cards for agricultural produce.
@@ -31,7 +32,7 @@ const marketSignalPrompt = ai.definePrompt({
   name: 'marketSignalPrompt',
   input: {schema: MarketSignalInputSchema},
   output: {schema: MarketSignalOutputSchema},
-  model: 'googleai/gemini-2.5-flash',
+  model: 'groq/llama-3.3-70b-versatile',
   config: {
     temperature: 0.4,
   },
