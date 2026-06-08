@@ -54,7 +54,7 @@ export function KisanAI() {
     } else if (/(disease|pest|insect|spray|fungus|rot|wilt|yellow|spots)/.test(inputLower)) {
       context = `Crop: ${primaryCrop}. Location: ${state}. Possible outbreaks in ${city} region. Recommend specific remedies.`;
     } else if (/(water|irrigation|drip|flood|moisture|dry)/.test(inputLower)) {
-      context = `Soil type: ${soil}. Irrigation method: ${irrigation}. Recent moisture load in ${state} is relevant.`;
+      context = `Soil type: ${soil}. Irrigation method: ${irrigation}. Recent rainfall: ${p.state} load is relevant.`;
     } else if (/(loan|interest|credit|money|bank|kcc|scheme|subsidy)/.test(inputLower)) {
       context = `Farmer profile: ${city}, ${state}. Land: ${size}. Eligible schemes: PM-Kisan, PM-FASAL, KCC.`;
     } else if (/(scheme|government|yojana|subsidy|registration|pm)/.test(inputLower)) {
@@ -74,35 +74,7 @@ export function KisanAI() {
     ]);
   }, []);
 
-  useEffect(() => {
-    const handleUpdate = () => {
-      const p = getProfile();
-      setProfile(p);
-      generateSuggestions(p);
-    };
-    window.addEventListener('profileUpdated', handleUpdate);
-    
-    // Initial load
-    const p = getProfile();
-    setMessages([
-      { 
-        role: 'assistant', 
-        content: `Namaste ${p.name} ji! Main Kisan AI hoon. Aapke ${p.crops[0]} khet (in ${p.city}) ke liye aaj main kya help kar sakta hoon?`, 
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-      }
-    ]);
-    generateSuggestions(p);
-
-    return () => window.removeEventListener('profileUpdated', handleUpdate);
-  }, [generateSuggestions]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, loading]);
-
-  const handleSend = async (messageText?: string) => {
+  const handleSend = useCallback(async (messageText?: string) => {
     const textToSend = messageText || input;
     if (!textToSend.trim() || loading) return;
 
@@ -185,11 +157,51 @@ export function KisanAI() {
       setLoading(false);
       generateSuggestions(profile);
     }
-  };
+  }, [input, loading, messages, profile, getEnrichedContext, generateSuggestions, toast]);
+
+  useEffect(() => {
+    const handleExternalOpen = (e: any) => {
+      const { prompt } = e.detail;
+      setOpen(true);
+      if (prompt) {
+        handleSend(prompt);
+      }
+    };
+    window.addEventListener('kisanAiOpen', handleExternalOpen);
+    return () => window.removeEventListener('kisanAiOpen', handleExternalOpen);
+  }, [handleSend]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      const p = getProfile();
+      setProfile(p);
+      generateSuggestions(p);
+    };
+    window.addEventListener('profileUpdated', handleUpdate);
+    
+    // Initial load
+    const p = getProfile();
+    if (messages.length === 0) {
+      setMessages([
+        { 
+          role: 'assistant', 
+          content: `Namaste ${p.name} ji! Main Kisan AI hoon. Aapke ${p.crops[0] || 'khet'} (in ${p.city}) ke liye aaj main kya help kar sakta hoon?`, 
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+        }
+      ]);
+    }
+    generateSuggestions(p);
+
+    return () => window.removeEventListener('profileUpdated', handleUpdate);
+  }, [generateSuggestions, messages.length]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
 
   const highlightContent = (text: string) => {
-    // Regex for numbers: wrap in green bold
-    // Regex for profile crops: wrap in amber
     let parts = text.split(/(\d+(?:\.\d+)?|[\u0900-\u097F]+|[a-zA-Z]+)/g);
     
     return parts.map((part, i) => {
@@ -232,12 +244,6 @@ export function KisanAI() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-               <div className="text-right hidden sm:block">
-                 <p className="text-[10px] font-black uppercase opacity-20 leading-none">Context</p>
-                 <p className="text-[11px] font-bold text-primary">{profile.city}</p>
-               </div>
-            </div>
           </div>
 
           {/* Messages */}
@@ -267,18 +273,6 @@ export function KisanAI() {
                         <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.4s]" />
                       </div>
                    </div>
-                </div>
-              )}
-              {error && (
-                <div className="flex justify-center">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleSend(messages[messages.length-1].content)}
-                    className="bg-amber-500/10 border-amber-500/20 text-amber-500 text-[11px] font-black uppercase tracking-widest h-8"
-                  >
-                    <RefreshCw size={12} className="mr-2" /> Tap to Retry
-                  </Button>
                 </div>
               )}
             </div>

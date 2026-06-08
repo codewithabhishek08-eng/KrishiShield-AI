@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, ShoppingCart, Satellite, Landmark, User, Bell, RefreshCw, LogOut, Settings, Globe } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -16,10 +17,21 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [avatarImage, setAvatarImage] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
+    const loadAvatar = () => {
+      if (typeof window !== 'undefined') {
+        setAvatarImage(localStorage.getItem('profileImage'));
+      }
+    };
+    loadAvatar();
+    window.addEventListener('profileUpdated', loadAvatar);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('profileUpdated', loadAvatar);
+    };
   }, []);
 
   const handleRefresh = () => {
@@ -51,10 +63,12 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`p-3 rounded-lg transition-all duration-150 group relative flex items-center justify-center
-                ${activeTab === tab.id 
+              className={cn(
+                "p-3 rounded-lg transition-all duration-150 group relative flex items-center justify-center",
+                activeTab === tab.id 
                   ? 'bg-primary/15 text-white border-l-[3px] border-primary' 
-                  : 'text-white/40 hover:bg-white/5 hover:text-white hover:scale-110'}`}
+                  : 'text-white/40 hover:bg-white/5 hover:text-white hover:scale-110'
+              )}
             >
               <tab.icon size={22} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
               <span className="absolute left-full ml-4 px-2 py-1 bg-[#0F230F] text-white text-[10px] font-bold uppercase tracking-widest rounded border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
@@ -67,28 +81,15 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
         {/* User Avatar */}
         <div className="relative mt-auto">
           <button 
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-8 h-8 rounded-full bg-[#1B5E20] border border-white/10 flex items-center justify-center text-[12px] font-medium transition-transform active:scale-90 hover:ring-2 hover:ring-primary/50"
+            onClick={() => setActiveTab('profile')}
+            className="w-10 h-10 rounded-full bg-[#1B5E20] border border-white/10 flex items-center justify-center text-[12px] font-medium transition-transform active:scale-90 hover:ring-2 hover:ring-primary/50 overflow-hidden"
           >
-            RK
+            {avatarImage ? (
+              <img src={avatarImage} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              'RK'
+            )}
           </button>
-          {showProfileMenu && (
-            <div className="absolute left-[80px] bottom-0 w-[160px] bg-[#0F230F] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200">
-              {[
-                { label: 'Field Mode', icon: Globe },
-                { label: 'Settings', icon: Settings },
-                { label: 'Log Out', icon: LogOut, danger: true },
-              ].map((item, i) => (
-                <button 
-                  key={i} 
-                  className={`w-full h-[36px] flex items-center gap-3 px-4 text-[14px] hover:bg-white/5 transition-colors ${item.danger ? 'text-destructive' : 'text-white/80'}`}
-                >
-                  <item.icon size={14} />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </nav>
 
@@ -96,13 +97,13 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
         {/* Top Context Bar */}
         <header className="sticky top-0 z-40 h-[56px] flex items-center justify-between px-6 bg-[#0D1F0D]/85 backdrop-blur-xl saturate-[1.3] border-b border-white/5">
           <div className="flex items-center gap-3">
-            <span className="text-[15px] font-normal text-white/70">Good morning, Ramesh</span>
+            <span className="text-[15px] font-normal text-white/70">KrishiShield AI</span>
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse-scale shadow-[0_0_8px_rgba(76,175,80,0.5)]" />
           </div>
           
           <div className="hidden sm:block">
             <span className="text-[13px] font-light text-white/40 font-code tabular-nums uppercase tracking-tight">
-              {time.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {time.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
 
@@ -151,7 +152,10 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center justify-center gap-1.5 flex-1 h-full transition-all ${activeTab === tab.id ? 'text-primary' : 'text-white/40'}`}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1.5 flex-1 h-full transition-all",
+                activeTab === tab.id ? 'text-primary' : 'text-white/40'
+              )}
             >
               <tab.icon size={20} className={activeTab === tab.id ? 'scale-110' : ''} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
               <span className="text-[9px] font-bold uppercase tracking-widest">{tab.label}</span>

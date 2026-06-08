@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
@@ -23,6 +24,7 @@ export function ProfileBanner() {
       </div>
       <div className="flex items-center gap-4">
         <button 
+          onClick={() => window.dispatchEvent(new CustomEvent('setActiveTab', { detail: 'profile' }))}
           className="text-[11px] font-black uppercase tracking-widest text-amber-500 hover:underline"
         >
           Go to Profile →

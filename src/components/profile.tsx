@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, Globe, Download, Shield, LogOut, 
-  ChevronRight, Lightbulb, Activity, Type, User
+  ChevronRight, Lightbulb, Activity, Type, User, Camera, Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +23,9 @@ export function ProfileScreen() {
   const [farmInsight, setFarmInsight] = useState('');
   const [loadingInsight, setLoadingInsight] = useState(true);
   const [fontSize, setFontSizeState] = useState('15px');
+  const [avatarImage, setAvatarImage] = useState<string | null>(null);
 
-  const canvasAvatarRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const savedFs = localStorage.getItem('ks_fontsize');
@@ -31,36 +33,18 @@ export function ProfileScreen() {
       setFontSizeState(savedFs);
       document.documentElement.style.fontSize = savedFs;
     }
-    
-    // Draw Avatar
-    const canvas = canvasAvatarRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const hue = (profile.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 37) % 360;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = `hsl(${hue}, 45%, 28%)`;
-        ctx.beginPath();
-        ctx.arc(48, 48, 48, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 32px Inter';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase();
-        ctx.fillText(initials, 48, 48);
-      }
-    }
-  }, [profile.name]);
+    const savedImg = localStorage.getItem('profileImage');
+    if (savedImg) setAvatarImage(savedImg);
+  }, []);
 
   useEffect(() => {
     async function loadInsight() {
       setLoadingInsight(true);
       try {
         const res = await getFarmInsight({ 
-          crop: profile.crops[0], 
-          location: profile.city, 
-          soil: profile.soilType 
+          crop: profile.crops[0] || 'tomato', 
+          location: profile.city || 'Nasik', 
+          soil: profile.soilType || 'Loamy'
         });
         setFarmInsight(res.insight);
       } catch (e) {
@@ -84,6 +68,27 @@ export function ProfileScreen() {
     localStorage.setItem('ks_fontsize', size);
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setAvatarImage(base64);
+        localStorage.setItem('profileImage', base64);
+        window.dispatchEvent(new Event('profileUpdated'));
+        toast({ title: "Avatar Updated" });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
   return (
     <div className="space-y-8 animate-in pb-20 max-w-4xl mx-auto">
       <div className="px-1">
@@ -97,11 +102,26 @@ export function ProfileScreen() {
         
         <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
           <div className="flex flex-col items-center gap-4">
-            <div className="relative p-[2px] rounded-full bg-conic-rotate overflow-hidden">
-              <div className="bg-[#0D1F0D] rounded-full p-0.5">
-                <canvas ref={canvasAvatarRef} width={96} height={96} className="rounded-full shadow-2xl" />
+            <div 
+              onClick={handleAvatarClick}
+              className="relative w-32 h-32 rounded-full cursor-pointer group bg-[#0D1F0D] border-2 border-primary/40 flex items-center justify-center overflow-hidden transition-all hover:scale-105 active:scale-95"
+            >
+              {avatarImage ? (
+                <img src={avatarImage} className="w-full h-full object-cover" alt="Profile" />
+              ) : (
+                <span className="text-3xl font-black text-white opacity-40">{initials || 'RK'}</span>
+              )}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Camera size={24} className="text-white" />
               </div>
             </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleFileChange} 
+            />
             <Badge className="bg-primary/15 text-primary border-primary/30 uppercase tracking-widest text-[9px] font-black px-2.5 py-1">
               Verified Farmer
             </Badge>
@@ -217,11 +237,6 @@ export function ProfileScreen() {
         }
         .animate-gradient-shift { animation: gradient-shift 12s ease-in-out infinite alternate; }
         @keyframes gradient-shift { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
-        .bg-conic-rotate {
-          background: conic-gradient(from 0deg, #4CAF50, #1976D2, #4CAF50);
-          animation: rotate 6s linear infinite;
-        }
-        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -13,6 +14,14 @@ import { ProfileBanner } from '@/components/profile-banner';
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
+    const handleSetTab = (e: any) => {
+      if (e.detail) setActiveTab(e.detail);
+    };
+    window.addEventListener('setActiveTab', handleSetTab);
+    return () => window.removeEventListener('setActiveTab', handleSetTab);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
