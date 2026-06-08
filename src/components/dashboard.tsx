@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
@@ -7,7 +6,8 @@ import {
   Clock, AlertCircle, MapPin, Leaf, Upload, 
   Camera, User, MessageSquare, CheckCircle2, 
   History, Share2, Save, Send, RefreshCw, 
-  Search, ShieldAlert, Activity, Sparkles, X
+  Search, ShieldAlert, Activity, Sparkles, X,
+  Info
 } from 'lucide-react';
 import { getAiIntelligenceFeed, type AiIntelligenceFeedOutput } from '@/ai/flows/ai-intelligence-feed-flow';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -291,7 +291,6 @@ function CropDiagnostics({ profile }: { profile: UserProfile }) {
     }`;
 
     try {
-      // Note: This uses a vision model via the proxy if supported, or handles as a multimodal prompt
       const res = await fetch('/api/groq', {
         method: 'POST',
         body: JSON.stringify({ 
