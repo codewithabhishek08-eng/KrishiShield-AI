@@ -10,7 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const AiIntelligenceFeedInputSchema = z.undefined();
+const AiIntelligenceFeedInputSchema = z.void();
 export type AiIntelligenceFeedInput = z.infer<typeof AiIntelligenceFeedInputSchema>;
 
 const BriefingItemSchema = z.object({
@@ -62,5 +62,5 @@ const aiIntelligenceFeedFlow = ai.defineFlow(
 );
 
 export async function getAiIntelligenceFeed(): Promise<AiIntelligenceFeedOutput> {
-  return aiIntelligenceFeedFlow(undefined);
+  return aiIntelligenceFeedFlow();
 }
