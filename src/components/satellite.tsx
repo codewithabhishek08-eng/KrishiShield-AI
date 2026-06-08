@@ -1,24 +1,25 @@
+
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
-  Satellite, Search, ArrowLeft, Wind, Thermometer, 
+  Satellite, Search, Wind, Thermometer, 
   Droplets, Microscope, Sparkles, Map as MapIcon,
   Info, AlertTriangle, RefreshCw, Activity,
-  TrendingUp, BarChart3, CloudRain, Target, Bug, Sprout, Leaf
+  Target, Bug, Sprout, Leaf, CloudRain
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { getFieldAssessment } from '@/ai/flows/field-assessment-flow';
 import { getNdviInsight } from '@/ai/flows/ndvi-insight-flow';
 import { getDiseaseInsight } from '@/ai/flows/disease-insight-flow';
 import { getYieldInsight } from '@/ai/flows/yield-insight-flow';
 import { getRainfallInsight } from '@/ai/flows/rainfall-insight-flow';
 import { 
-  AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, 
-  ComposedChart, Legend, Cell 
+  AreaChart, Area, LineChart, Line, Bar, 
+  XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, ReferenceLine, 
+  ComposedChart, Cell 
 } from 'recharts';
 
 import 'leaflet/dist/leaflet.css';
@@ -146,8 +147,9 @@ function AdviceBlock({
   const [insight, setInsight] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [internalRefresh, setInternalRefresh] = useState(0);
 
-  const fetch = useCallback(async () => {
+  const fetchInsight = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
@@ -155,15 +157,14 @@ function AdviceBlock({
       setInsight(res.insight);
     } catch (e) {
       setError(true);
-      setTimeout(fetch, 4000);
     } finally {
       setLoading(false);
     }
   }, [flow, data]);
 
   useEffect(() => {
-    fetch();
-  }, [fetch, refreshKey]);
+    fetchInsight();
+  }, [fetchInsight, refreshKey, internalRefresh]);
 
   return (
     <div className="border-l-3 border-primary bg-black/35 rounded-xl p-4 relative group transition-all hover:bg-black/50">
@@ -188,7 +189,7 @@ function AdviceBlock({
         )}
       </div>
       <button 
-        onClick={fetch}
+        onClick={() => setInternalRefresh(k => k + 1)}
         className="absolute bottom-2 right-2 p-1.5 text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
       >
         <RefreshCw size={12} />
@@ -199,26 +200,25 @@ function AdviceBlock({
 
 export function SatelliteScreen() {
   const [selectedField, setSelectedField] = useState<FieldData | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(new Date());
 
   const mapRef = useRef<any>(null);
+  const flyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-refresh AI every 5 mins
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setRefreshKey(k => k + 1);
-      setLastUpdated(new Date());
-    }, 300000);
-    return () => clearInterval(timer);
-  }, []);
-
+  // Initialize Map
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const L = require('leaflet');
-    if (mapRef.current) return;
+    
+    // We target the map element - ensuring it exists
+    const container = document.getElementById('satellite-map');
+    if (!container) return;
+
+    if (mapRef.current) {
+      mapRef.current.remove();
+    }
 
     const map = L.map('satellite-map', {
       zoomControl: false,
@@ -238,32 +238,37 @@ export function SatelliteScreen() {
       .on('click', () => setSelectedField(DEFAULT_FIELD_DATA));
 
     mapRef.current = map;
-    setMapLoaded(true);
 
-    setTimeout(() => {
-      map.invalidateSize();
-      map.flyTo([19.9975, 73.7898], 14, { duration: 3.5 });
-    }, 1000);
+    // Trigger cinematic entrance zoom
+    flyTimeoutRef.current = setTimeout(() => {
+      if (mapRef.current && container.isConnected) {
+        mapRef.current.invalidateSize();
+        mapRef.current.flyTo([19.9975, 73.7898], 14, { duration: 3.5 });
+      }
+    }, 800);
 
     return () => {
-      map.remove();
-      mapRef.current = null;
+      if (flyTimeoutRef.current) clearTimeout(flyTimeoutRef.current);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
-  }, []);
+  }, [selectedField === null]); // Re-init map when transitioning between modes as container is replaced
 
   const handleRefreshAll = () => {
     setRefreshKey(k => k + 1);
     setLastUpdated(new Date());
   };
 
-  const chartStyles = "bg-black/80 backdrop-blur-3xl border border-primary/20 rounded-[14px] p-5 relative group overflow-hidden h-[320px]";
+  const chartStyles = "bg-black/80 backdrop-blur-3xl border border-primary/20 rounded-[14px] p-5 relative group overflow-hidden h-[320px] transition-all hover:border-primary/40";
 
   if (!selectedField) {
     return (
       <div className="relative h-[calc(100vh-56px)] w-full flex flex-col bg-[#0A0F0A]">
         <div id="satellite-map" className="flex-1 w-full" />
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[2000]">
-          <div className="bg-black/60 backdrop-blur-xl border border-primary/30 p-10 rounded-3xl flex flex-col items-center gap-6 animate-in zoom-in-95">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1000]">
+          <div className="bg-black/60 backdrop-blur-xl border border-primary/30 p-10 rounded-3xl flex flex-col items-center gap-6 animate-in zoom-in-95 pointer-events-auto">
             <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center animate-pulse">
               <div className="w-6 h-6 bg-primary rounded-full" />
             </div>
@@ -300,7 +305,7 @@ export function SatelliteScreen() {
             { label: 'NDVI Value', val: selectedField.metrics.ndvi, unit: ' index', color: 'text-amber-400' },
             { label: 'Disease Risk', val: selectedField.metrics.diseaseRisk, unit: '%', color: 'text-red-500' },
             { label: 'Days to Harvest', val: selectedField.metrics.daysToHarvest, unit: ' days', color: 'text-primary' },
-            { label: 'Last Satellite Pass', val: 2, unit: 'h ago', color: 'text-white/60', isRaw: true }
+            { label: 'Last Pass', val: 2, unit: 'h ago', color: 'text-white/60', isRaw: true }
           ].map((s, i) => (
             <div key={i} className="flex flex-col gap-1 min-w-[140px]">
               <span className="text-[10px] uppercase font-black tracking-widest opacity-40">{s.label}</span>
@@ -334,20 +339,20 @@ export function SatelliteScreen() {
                   <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
                   <YAxis domain={[0, 1]} ticks={[0, 0.2, 0.4, 0.6, 0.8, 1.0]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
                   <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
-                  <Area type="monotone" dataKey="field" stroke="#F4A435" strokeWidth={2} fill="url(#colorField)" animationDuration={800} />
-                  <Line type="monotone" dataKey="baseline" stroke="#4CAF50" strokeDasharray="5 5" dot={false} strokeWidth={1} />
+                  <Area type="monotone" dataKey="field" stroke="#F4A435" strokeWidth={2} fill="url(#colorField)" />
+                  <Line type="monotone" dataKey="baseline" stroke="#4CAF50" strokeDasharray="5 5" dot={false} />
                   {selectedField.metrics.ndvi < 0.5 && (
-                    <ReferenceLine y={0.5} stroke="rgba(183,28,28,0.3)" label={{ position: 'top', value: 'Stress Zone', fill: '#EF5350', fontSize: 10 }} />
+                    <ReferenceLine y={0.5} stroke="rgba(183,28,28,0.4)" label={{ position: 'top', value: 'Stress Zone', fill: '#EF5350', fontSize: 10 }} />
                   )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Card 2: Disease Probability */}
+            {/* Card 2: Pathogen Risk */}
             <div className={chartStyles}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-xs font-black uppercase text-white/80">Pathogen Risk</span>
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#EF5350]" />
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               </div>
               <ResponsiveContainer width="100%" height="70%">
                 <LineChart data={selectedField.diseaseHistory}>
@@ -355,26 +360,16 @@ export function SatelliteScreen() {
                   <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
                   <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit="%" />
                   <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
-                  <ReferenceLine y={60} stroke="#FFF" strokeDasharray="3 3" label={{ position: 'right', value: 'Action Required', fill: '#FFF', fontSize: 9 }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="probability" 
-                    stroke="#EF5350" 
-                    strokeWidth={3} 
-                    dot={(props: any) => {
-                      const { cx, cy, value } = props;
-                      if (value > 60) return <circle cx={cx} cy={cy} r={4} fill="#EF5350" className="animate-pulse" />;
-                      return <circle cx={cx} cy={cy} r={2} fill="#EF5350" />;
-                    }}
-                  />
+                  <ReferenceLine y={60} stroke="#FFF" strokeDasharray="3 3" label={{ position: 'right', value: 'Threshold', fill: '#FFF', fontSize: 9 }} />
+                  <Line type="monotone" dataKey="probability" stroke="#EF5350" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Card 3: Yield Forecast */}
+            {/* Card 3: Forecast */}
             <div className={chartStyles}>
               <div className="flex justify-between items-start mb-4">
-                <span className="text-xs font-black uppercase text-white/80">Yield Projections</span>
+                <span className="text-xs font-black uppercase text-white/80">Yield Forecast</span>
                 <Target size={14} className="text-primary opacity-40" />
               </div>
               <ResponsiveContainer width="100%" height="65%">
@@ -383,9 +378,9 @@ export function SatelliteScreen() {
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit=" kg" />
                   <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
-                  <Line type="monotone" dataKey="optimal" stroke="#4CAF50" strokeWidth={2} animationBegin={0} />
-                  <Line type="monotone" dataKey="forecast" stroke="#1976D2" strokeWidth={2} animationBegin={200} />
-                  <Line type="monotone" dataKey="untreated" stroke="#B71C1C" strokeWidth={2} animationBegin={400} />
+                  <Line type="monotone" dataKey="optimal" stroke="#4CAF50" strokeWidth={2} />
+                  <Line type="monotone" dataKey="forecast" stroke="#1976D2" strokeWidth={2} />
+                  <Line type="monotone" dataKey="untreated" stroke="#B71C1C" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex justify-center gap-4 mt-4">
@@ -398,7 +393,7 @@ export function SatelliteScreen() {
               </div>
             </div>
 
-            {/* Card 4: Rainfall vs Need */}
+            {/* Card 4: Rainfall */}
             <div className={chartStyles}>
               <div className="flex justify-between items-start mb-4">
                 <span className="text-xs font-black uppercase text-white/80">Hydrology Balance</span>
@@ -410,7 +405,7 @@ export function SatelliteScreen() {
                   <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit="mm" />
                   <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
-                  <Bar dataKey="actual" fill="#1976D2" radius={[4, 4, 0, 0]} animationDuration={600}>
+                  <Bar dataKey="actual" fill="#1976D2" radius={[4, 4, 0, 0]}>
                     {selectedField.rainfallHistory.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.actual < entry.requirement ? 'rgba(183,28,28,0.4)' : '#1976D2'} />
                     ))}
