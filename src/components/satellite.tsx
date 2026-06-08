@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -57,6 +56,7 @@ function Typewriter({ text, speed = 28 }: { text: string, speed?: number }) {
   useEffect(() => {
     let i = 0;
     setDisplayed('');
+    if (!text) return;
     const timer = setInterval(() => {
       setDisplayed(text.slice(0, i));
       i++;
@@ -98,6 +98,7 @@ function AdviceBlock({ title, icon: Icon, templateKey, profile, extras, refreshK
         {loading ? (
           <div className="space-y-2 animate-pulse">
             <div className="h-3 bg-primary/10 rounded w-full" />
+            <div className="h-3 bg-primary/10 rounded w-5/6" />
           </div>
         ) : (
           <p className="text-[13px] font-body text-white/70 leading-relaxed italic">
@@ -116,11 +117,13 @@ export function SatelliteScreen() {
   const [profile, setProfile] = useState<UserProfile>(getProfile());
   const [selectedField, setSelectedField] = useState<FieldData | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [geocodingError, setGeocodingError] = useState(false);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
   const geocodeAndFly = useCallback(async (map: any, city: string, state: string) => {
     try {
+      setGeocodingError(false);
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${city},${state},India&format=json&limit=1`);
       const data = await res.json();
       if (data && data[0]) {
@@ -133,7 +136,7 @@ export function SatelliteScreen() {
         
         const icon = L.divIcon({
           className: 'custom-icon',
-          html: `<div class="w-4 h-4 bg-primary rounded-full border-2 border-white radar-pulse"></div>`,
+          html: `<div class="w-4 h-4 bg-primary rounded-full border-2 border-white radar-pulse shadow-[0_0_15px_rgba(76,175,80,0.8)]"></div>`,
           iconSize: [16, 16]
         });
 
@@ -147,9 +150,12 @@ export function SatelliteScreen() {
             ndviHistory: Array.from({ length: 12 }, (_, i) => ({ week: `W${i + 1}`, baseline: 0.75, field: 0.5 + Math.random() * 0.2 }))
           });
         });
+      } else {
+        setGeocodingError(true);
       }
     } catch (e) {
       console.error("Geocoding failed", e);
+      setGeocodingError(true);
     }
   }, [profile.crops]);
 
@@ -165,8 +171,15 @@ export function SatelliteScreen() {
       const L = require('leaflet');
       const container = document.getElementById('satellite-map');
       if (container && !mapRef.current) {
-        if ((container as any)._leaflet_id) (container as any)._leaflet_id = null;
-        const map = L.map('satellite-map', { zoomControl: false, attributionControl: false }).setView([20, 78], 5);
+        if ((container as any)._leaflet_id) {
+          (container as any)._leaflet_id = null;
+        }
+        const map = L.map('satellite-map', { 
+          zoomControl: false, 
+          attributionControl: false,
+          fadeAnimation: true,
+          markerZoomAnimation: true
+        }).setView([20, 78], 5);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
         mapRef.current = map;
         geocodeAndFly(map, profile.city, profile.state);
@@ -180,10 +193,17 @@ export function SatelliteScreen() {
     return (
       <div className="relative h-[calc(100vh-120px)] w-full flex flex-col bg-[#0A0F0A]">
         <div id="satellite-map" className="flex-1 w-full" />
-        <div className="absolute inset-0 flex items-center justify-center z-[1000] pointer-events-none">
-          <div className="bg-black/60 backdrop-blur-xl border border-primary/30 p-10 rounded-3xl flex flex-col items-center gap-6 animate-in zoom-in-95 pointer-events-auto">
+        <div className="absolute inset-0 flex items-center justify-center z-[1000] pointer-events-none px-6">
+          <div className="bg-black/80 backdrop-blur-2xl border border-primary/30 p-10 rounded-3xl flex flex-col items-center gap-6 animate-in zoom-in-95 pointer-events-auto max-w-md text-center">
             <MapPin size={32} className="text-primary animate-bounce" />
-            <p className="text-lg font-bold text-white/80">Analysing region: <span className="text-primary">{profile.city}</span>. Select field to load.</p>
+            {geocodingError ? (
+              <div className="space-y-4">
+                <p className="text-lg font-bold text-red-400">Location not found.</p>
+                <p className="text-sm opacity-60">Update your Profile city/state to sync satellite telemetry.</p>
+              </div>
+            ) : (
+              <p className="text-lg font-bold text-white/80">Analysing region: <span className="text-primary" data-location="city">{profile.city}</span>. <br/>Select field marker to load intelligence.</p>
+            )}
           </div>
         </div>
       </div>
@@ -191,38 +211,71 @@ export function SatelliteScreen() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#070D07] text-white">
-      <div id="satellite-map" className="h-[35vh] w-full border-b border-primary/10" />
+    <div className="relative min-h-screen bg-[#070D07] text-white animate-in fade-in duration-500 pb-20">
+      <div id="satellite-map" className="h-[35vh] w-full border-b border-primary/10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]" />
+      
       <div className="max-w-[1400px] mx-auto p-6 space-y-6">
-        <div className="bg-black/40 backdrop-blur-xl border border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row gap-8 overflow-x-auto no-scrollbar">
+        <div className="flex items-center justify-between">
+           <div className="flex flex-col">
+              <h2 className="text-2xl font-headline font-black text-white">{selectedField.name}</h2>
+              <div className="flex items-center gap-2 text-white/40 mt-1">
+                <MapPin size={12} className="text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">{profile.city}, {profile.state}</span>
+              </div>
+           </div>
+           <Badge variant="outline" className="border-primary/20 text-primary uppercase text-[9px] font-black tracking-widest px-3">Live Telemetry</Badge>
+        </div>
+
+        <div className="bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
-            { label: 'Field Health', val: selectedField.metrics.healthScore, unit: '/100', color: 'text-primary' },
-            { label: 'NDVI Score', val: selectedField.metrics.ndvi, unit: '', color: 'text-amber-400' },
-            { label: 'Days to Harvest', val: selectedField.metrics.daysToHarvest, unit: ' d', color: 'text-primary' },
+            { label: 'Field Vigor', val: selectedField.metrics.healthScore, unit: '/100', color: 'text-primary' },
+            { label: 'NDVI Index', val: selectedField.metrics.ndvi, unit: '', color: 'text-amber-400' },
+            { label: 'Harvest ETA', val: selectedField.metrics.daysToHarvest, unit: ' days', color: 'text-primary' },
+            { label: 'Water Status', val: selectedField.metrics.rainfall, unit: 'mm', color: 'text-blue-400' },
           ].map((s, i) => (
-            <div key={i} className="flex flex-col gap-1 min-w-[140px]">
-              <span className="text-[10px] uppercase font-black tracking-widest opacity-40">{s.label}</span>
+            <div key={i} className="flex flex-col gap-1">
+              <span className="text-[9px] uppercase font-black tracking-widest opacity-30">{s.label}</span>
               <p className={cn("text-2xl font-headline font-black", s.color)}><Counter value={s.val} delay={i * 100} />{s.unit}</p>
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-          <div className="lg:col-span-6 bg-black/80 border border-primary/20 rounded-xl p-5 h-[320px]">
-            <p className="text-xs font-black uppercase text-white/80 mb-4">NDVI Trend — {selectedField.crop} · <span data-location="city">{profile.city}</span></p>
-            <ResponsiveContainer width="100%" height="80%">
-              <AreaChart data={selectedField.ndviHistory}>
-                <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
-                <YAxis domain={[0, 1]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
-                <Area type="monotone" dataKey="field" stroke="#F4A435" fill="rgba(244,164,53,0.1)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="lg:col-span-6 bg-black/40 border border-white/5 rounded-xl p-6 h-[400px] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-xs font-black uppercase text-white/80 tracking-widest">NDVI Trend — <span className="text-primary">{selectedField.crop}</span> in <span data-location="city">{profile.city}</span></p>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-primary" /><span className="text-[9px] opacity-40 font-bold uppercase">Field</span></div>
+                <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full border border-white/20" /><span className="text-[9px] opacity-40 font-bold uppercase">Baseline</span></div>
+              </div>
+            </div>
+            <div className="flex-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={selectedField.ndviHistory}>
+                  <defs>
+                    <linearGradient id="colorField" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4CAF50" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#4CAF50" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <YAxis domain={[0, 1]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <Area type="monotone" dataKey="field" stroke="#4CAF50" strokeWidth={2} fillOpacity={1} fill="url(#colorField)" />
+                  <Area type="monotone" dataKey="baseline" stroke="rgba(255,255,255,0.1)" fill="transparent" strokeDasharray="5 5" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
+          
           <div className="lg:col-span-4 space-y-4">
-            <h3 className="text-lg font-headline font-black text-white px-2">Regional Intelligence: <span data-location="city" className="text-primary">{profile.city}</span></h3>
-            <AdviceBlock title="Biomass Diagnosis" icon={Leaf} templateKey="NDVI" profile={profile} extras={{ ndvi: selectedField.metrics.ndvi, week: "W12" }} refreshKey={refreshKey} />
-            <AdviceBlock title="Pathogen Analysis" icon={Bug} templateKey="DISEASE" profile={profile} extras={{ prob: selectedField.metrics.diseaseRisk }} refreshKey={refreshKey} />
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30">Tactical Brief</h3>
+              <span className="text-[9px] opacity-20 font-mono">ID: {selectedField.id}</span>
+            </div>
+            <AdviceBlock title="Biomass Assessment" icon={Leaf} templateKey="NDVI" profile={profile} extras={{ ndvi: selectedField.metrics.ndvi, week: "W12" }} refreshKey={refreshKey} />
+            <AdviceBlock title="Disease Telemetry" icon={Bug} templateKey="DISEASE" profile={profile} extras={{ prob: selectedField.metrics.diseaseRisk }} refreshKey={refreshKey} />
+            <AdviceBlock title="Yield Projection" icon={Target} templateKey="YIELD" profile={profile} extras={{ yield: 2400, avg: 1800 }} refreshKey={refreshKey} />
           </div>
         </div>
       </div>

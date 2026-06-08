@@ -18,9 +18,9 @@ export const STORAGE_KEY = 'krishiProfile';
 export const DEFAULT_PROFILE: UserProfile = {
   name: 'Kisan Farmer',
   city: 'Your City',
-  state: 'Maharashtra',
+  state: 'Your State',
   country: 'India',
-  crops: ['tomato', 'onion'],
+  crops: ['tomato'],
   fieldSize: '1.0 hectares',
   soilType: 'Loamy',
   irrigationType: 'Drip',
@@ -28,7 +28,8 @@ export const DEFAULT_PROFILE: UserProfile = {
 
 export const INDIAN_STATES = [
   "Maharashtra", "Punjab", "Haryana", "Karnataka", "Gujarat", 
-  "Uttar Pradesh", "Rajasthan", "Madhya Pradesh", "Tamil Nadu", "Andhra Pradesh"
+  "Uttar Pradesh", "Rajasthan", "Madhya Pradesh", "Tamil Nadu", "Andhra Pradesh",
+  "Telangana", "West Bengal", "Bihar", "Odisha", "Kerala", "Assam"
 ];
 
 export function getProfile(): UserProfile {
@@ -36,7 +37,11 @@ export function getProfile(): UserProfile {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return DEFAULT_PROFILE;
   try {
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    // Ensure critical fields aren't blank
+    if (!parsed.city) parsed.city = DEFAULT_PROFILE.city;
+    if (!parsed.state) parsed.state = DEFAULT_PROFILE.state;
+    return parsed;
   } catch (e) {
     return DEFAULT_PROFILE;
   }
@@ -59,7 +64,10 @@ export const PROMPT_TEMPLATES = {
   YIELD: "Projected yield is {yield}kg/acre vs regional average {avg}kg/acre for {crop} in {city}, {state}. Explain the yield gap cause in one sentence and give one corrective measure with expected recovery percentage.",
   RAINFALL: "Rainfall deficit is {deficit}mm this week for {crop} needing {need}mm in {city}, {state}. Give a precise irrigation recommendation — method, timing, and quantity — in 2 sentences.",
   MARKET_FORECAST: "Forecast {crop} price trend for {city}, {state} market over next 6 months. Current price ₹{price}/kg. Give 3 key drivers and a price range prediction in 3 sentences.",
-  INTELLIGENCE_FEED: "You are an agricultural intelligence officer. The user is {name}, a {crop} farmer in {city}, {state}. Generate 3 short intelligence briefings (max 40 words each) about market conditions, weather impact, and biosecurity."
+  MARKET_WEATHER: "Analyze ideal growing temperature and season suitability for {crop} in {state}. Best sowing months? Frost/heat risks for {city}?",
+  MARKET_IRRIGATION: "Water requirement for {crop} in {city}, {state} per acre per week. Recommended method based on {soil} soil? Current deficit/surplus assessment.",
+  MARKET_PEST: "Top 3 active pest threats for {crop} in {state} this season. Outbreak probability in {city}? Recommended pesticide and organic alternative.",
+  MARKET_SOIL: "NPK recommendation for {crop} in {state} on {soil} soil. Application schedule and estimated cost per acre."
 };
 
 export function buildPrompt(templateKey: keyof typeof PROMPT_TEMPLATES, profile: UserProfile, extras: any = {}) {
@@ -68,7 +76,8 @@ export function buildPrompt(templateKey: keyof typeof PROMPT_TEMPLATES, profile:
     .replaceAll('{name}', profile.name)
     .replaceAll('{city}', profile.city)
     .replaceAll('{state}', profile.state)
-    .replaceAll('{crop}', extras.crop || profile.crops[0] || 'wheat')
+    .replaceAll('{soil}', profile.soilType)
+    .replaceAll('{crop}', extras.crop || (profile.crops && profile.crops[0]) || 'wheat')
     .replaceAll('{ndvi}', extras.ndvi || '0.0')
     .replaceAll('{prob}', extras.prob || '0')
     .replaceAll('{h}', extras.h || '0')

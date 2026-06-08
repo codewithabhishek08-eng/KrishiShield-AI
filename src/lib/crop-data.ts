@@ -15,7 +15,6 @@ export interface Crop {
   trend: 'bullish' | 'bearish' | 'volatile' | 'stable';
   changeToday: number;
   season: string;
-  states: string[];
   weather: { minTemp: number; maxTemp: number; rainfall: 'low' | 'medium' | 'high'; humidity: string };
   irrigation: { method: string; waterReq: string; frequency: string };
   pesticides: { name: string; target: string; dosage: string }[];
@@ -84,7 +83,6 @@ function generateCrops(): Crop[] {
         trend: rand() > 0.7 ? 'bullish' : rand() > 0.4 ? 'stable' : 'volatile',
         changeToday: parseFloat(((rand() - 0.5) * 6).toFixed(2)),
         season: "Oct–Feb",
-        states: ["Maharashtra", "Karnataka", "Punjab"].sort(() => rand() - 0.5).slice(0, 2),
         weather: { minTemp: 18, maxTemp: 32, rainfall: 'medium', humidity: "60-70%" },
         irrigation: { method: "Drip", waterReq: "Medium", frequency: "Weekly" },
         pesticides: [{ name: "Neem Oil", target: "Aphids", dosage: "5ml/L" }],

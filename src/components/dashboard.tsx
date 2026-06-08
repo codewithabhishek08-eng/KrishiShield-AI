@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -29,7 +28,7 @@ export function Dashboard() {
         const data = await getAiIntelligenceFeed({ 
           city: p.city, 
           state: p.state, 
-          crop: p.crops[0], 
+          crop: (p.crops && p.crops[0]) || 'tomato', 
           name: p.name 
         });
         setFeed(data);
@@ -59,9 +58,9 @@ export function Dashboard() {
   }, []);
 
   const getStatusColor = (score: number) => {
-    if (score > 75) return '#4CAF50'; // Green
-    if (score >= 50) return '#FF9800'; // Amber
-    return '#F44336'; // Red
+    if (score > 75) return '#4CAF50'; 
+    if (score >= 50) return '#FF9800'; 
+    return '#F44336'; 
   };
 
   const isCritical = healthScore < 50;
@@ -74,12 +73,14 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="space-y-[64px] animate-in">
+    <div className="space-y-[64px] animate-in fade-in duration-700">
       {/* Dynamic Header */}
       <div className="flex justify-between items-center px-2">
         <div className="flex items-center gap-3 text-white/40">
           <MapPin size={14} className="text-primary" />
-          <span className="text-[11px] font-black uppercase tracking-widest">{profile.city}, {profile.state}</span>
+          <span className="text-[11px] font-black uppercase tracking-widest" data-location="city">{profile.city}</span>
+          <span className="opacity-20">/</span>
+          <span className="text-[11px] font-black uppercase tracking-widest opacity-40" data-location="state">{profile.state}</span>
         </div>
         <Badge variant="outline" className="text-[10px] opacity-40 uppercase tracking-widest border-white/5">{profile.crops[0]} Operations</Badge>
       </div>
@@ -111,7 +112,7 @@ export function Dashboard() {
             <span className="text-6xl md:text-8xl font-headline font-black tracking-tighter transition-colors duration-500" style={{ color: getStatusColor(healthScore) }}>
               {healthScore}
             </span>
-            <span className="text-[10px] uppercase font-black tracking-[0.3em] opacity-40 mt-[-8px]">Index</span>
+            <span className="text-[10px] uppercase font-black tracking-[0.3em] opacity-40 mt-[-8px]">Vigor Index</span>
           </div>
 
           {nodes.map((node, i) => {
@@ -123,7 +124,6 @@ export function Dashboard() {
             };
             return (
               <div key={i} className={`absolute flex flex-col items-center gap-1.5 ${positions[node.pos]}`}>
-                <div className={`absolute bg-white/10 ${node.pos === 'top' || node.pos === 'bottom' ? 'w-px h-8' : 'h-px w-8'} ${node.pos === 'top' ? 'bottom-full' : node.pos === 'bottom' ? 'top-full' : node.pos === 'left' ? 'right-full' : 'left-full'}`} />
                 <div className="w-[32px] h-[32px] rounded-full bg-[#0F230F] border border-white/10 flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
                   <node.icon size={14} className="text-primary" />
                 </div>
@@ -138,12 +138,12 @@ export function Dashboard() {
       </section>
 
       {/* Intelligence Feed */}
-      <section className="animate-in">
+      <section className="animate-in slide-in-from-bottom-4 duration-1000">
         <div className="flex items-center justify-between mb-8 px-2">
           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30">Operational Briefing</h3>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-            <span className="text-[9px] font-bold uppercase opacity-20">Live Uplink</span>
+            <span className="text-[9px] font-bold uppercase opacity-20">Live Intelligence Link</span>
           </div>
         </div>
         
@@ -151,8 +151,8 @@ export function Dashboard() {
           {loadingFeed ? (
             [1, 2, 3].map(i => (
               <div key={i} className="bg-white/2 border border-white/5 rounded-2xl p-6 space-y-4">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-[60px] w-full" />
+                <Skeleton className="h-4 w-16 bg-white/5" />
+                <Skeleton className="h-[60px] w-full bg-white/5" />
               </div>
             ))
           ) : (
