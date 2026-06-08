@@ -1,518 +1,388 @@
-
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
-  ShieldAlert, Droplets, Microscope, AlertTriangle, Users, 
-  Clock, Eye, Edit3, Send, Satellite, RefreshCw, Calendar,
-  ChevronDown, Activity
+  Satellite, Search, ArrowLeft, Wind, Thermometer, 
+  Droplets, Microscope, Sparkles, Map as MapIcon,
+  Info, AlertTriangle, RefreshCw
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine, Area 
-} from 'recharts';
-import { diseaseTreatmentProtocol, type DiseaseTreatmentProtocolOutput } from '@/ai/flows/disease-treatment-protocol-flow';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { getFieldAssessment } from '@/ai/flows/field-assessment-flow';
 
-// --- NDVI GRID CONSTANTS ---
+// Leaflet is client-side only
+import 'leaflet/dist/leaflet.css';
+
+const NDVI_COLORS = {
+  healthy: '#4CAF50',
+  stressed: '#F57F17',
+  drought: '#B71C1C'
+};
+
 const GRID_SIZE = 48;
-const BASE_NDVI = new Float32Array(GRID_SIZE * GRID_SIZE);
-for (let i = 0; i < BASE_NDVI.length; i++) {
-  // Base health is high (0.65 - 0.85)
-  BASE_NDVI[i] = 0.65 + Math.random() * 0.2;
-}
-
-// Inject Disease Zone (North-East Patch)
-for (let y = 5; y < 15; y++) {
-  for (let x = 30; x < 45; x++) {
-    BASE_NDVI[y * GRID_SIZE + x] = 0.3 + Math.random() * 0.2;
-  }
-}
-
-// Inject Irrigation Shadow (Bottom Strip)
-for (let y = 44; y < 48; y++) {
-  for (let x = 0; x < GRID_SIZE; x++) {
-    BASE_NDVI[y * GRID_SIZE + x] = 0.1 + Math.random() * 0.15;
-  }
-}
 
 export function SatelliteScreen() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [viewMode, setViewMode] = useState<'NDVI' | 'RGB' | 'Thermal'>('NDVI');
-  const [protocol, setProtocol] = useState<DiseaseTreatmentProtocolOutput>([]);
-  const [loadingProtocol, setLoadingProtocol] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [hoverData, setHoverData] = useState<{ x: number, y: number, val: number, visible: boolean }>({ x: 0, y: 0, val: 0, visible: false });
-  const [layers, setLayers] = useState({ disease: true, irrigation: true, boundary: true });
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [selectedField, setSelectedField] = useState<any>(null);
+  const [activeChartTab, setActiveChartTab] = useState<'NDVI' | 'Disease' | 'Yield' | 'Rainfall'>('NDVI');
+  const [assessmentText, setAssessmentText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const mapRef = useRef<any>(null);
+  const heatmapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const chartCanvasRef = useRef<HTMLCanvasElement>(null);
+  const typeTimeoutRef = useRef<any>(null);
 
-  const dashOffsetRef = useRef(0);
-
-  // --- LERP COLOR FUNCTION ---
-  const lerpColor = (a: number[], b: number[], t: number) => {
-    return a.map((val, i) => Math.round(val + (b[i] - val) * t));
-  };
-
-  const getNDVIColor = (v: number, mode: 'NDVI' | 'RGB' | 'Thermal') => {
-    if (mode === 'RGB') {
-      // Mock RGB mapping (warm tones)
-      if (v > 0.6) return 'rgb(46, 125, 50)';
-      if (v > 0.4) return 'rgb(139, 195, 74)';
-      return 'rgb(121, 85, 72)';
-    }
-    if (mode === 'Thermal') {
-      // Thermal map (blue to red)
-      const r = Math.round(v * 255);
-      const b = Math.round((1 - v) * 255);
-      return `rgb(${r}, 50, ${b})`;
-    }
-
-    // Standard NDVI Mapping
-    if (v < 0.2) return 'rgb(165,0,38)';
-    if (v < 0.4) return 'rgb(244,109,67)';
-    if (v < 0.6) return 'rgb(254,224,139)';
-    if (v < 0.75) return 'rgb(166,217,106)';
-    return 'rgb(0,104,55)';
-  };
-
-  // --- DRAWING LOGIC ---
+  // Initialize Map
   useEffect(() => {
-    const canvas = canvasRef.current;
+    if (typeof window === 'undefined') return;
+    const L = require('leaflet');
+    
+    if (mapRef.current) return;
+
+    // Custom dark theme layer
+    const map = L.map('satellite-map', {
+      zoomControl: false,
+      attributionControl: false,
+      maxBounds: [[-90, -180], [90, 180]]
+    }).setView([20, 0], 2);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; CartoDB'
+    }).addTo(map);
+
+    // Mock Regional Overlays (Glow)
+    const regionalData = [
+      { coords: [[18, 70], [22, 70], [22, 78], [18, 78]], color: NDVI_COLORS.healthy }, // Maharashtra
+      { coords: [[28, 74], [32, 74], [32, 77], [28, 77]], color: NDVI_COLORS.stressed }, // Punjab
+    ];
+
+    regionalData.forEach(region => {
+      L.polygon(region.coords, {
+        color: region.color,
+        weight: 0,
+        fillColor: region.color,
+        fillOpacity: 0.15,
+        className: 'ndvi-glow'
+      }).addTo(map);
+    });
+
+    // Outbreak Pins
+    const outbreaks = [
+      { lat: 20.0, lng: 73.8, label: "Nasik - Blight" },
+      { lat: 18.5, lng: 73.8, label: "Pune - Pest Surge" },
+      { lat: 15.3, lng: 75.7, label: "Hubli - Water Stress" }
+    ];
+
+    outbreaks.forEach(o => {
+      const icon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white radar-pulse relative"></div>`,
+        iconSize: [16, 16]
+      });
+      L.marker([o.lat, o.lng], { icon }).addTo(map).on('click', () => {
+        handleFieldSelect({ name: o.label, lat: o.lat, lng: o.lng });
+      });
+    });
+
+    mapRef.current = map;
+    setMapLoaded(true);
+
+    // Cinematic Zoom Entrance
+    setTimeout(() => {
+      map.flyTo([19.9975, 73.7898], 14, { duration: 3.5, easeLinearity: 0.25 });
+      setTimeout(() => {
+        handleFieldSelect({ name: "Ramesh's Field 44B", lat: 19.9975, lng: 73.7898 });
+      }, 3800);
+    }, 1500);
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleFieldSelect = async (field: any) => {
+    setSelectedField(field);
+    setAssessmentText('');
+    
+    // Draw side panel heatmap
+    setTimeout(() => drawHeatmap(), 100);
+
+    // Fetch AI Assessment
+    try {
+      const res = await getFieldAssessment({
+        score: 74,
+        crop: "Tomato (Hybrid)",
+        humidity: 65,
+        location: field.name
+      });
+      typeAssessment(res.assessment);
+    } catch (e) {
+      typeAssessment("Uplink established. Field metrics indicate stable vigor with moderate transpiration load. Action: Monitor irrigation pressure at segment C4.");
+    }
+  };
+
+  const typeAssessment = (text: string) => {
+    setIsTyping(true);
+    let i = 0;
+    const speed = 25;
+    if (typeTimeoutRef.current) clearInterval(typeTimeoutRef.current);
+    
+    typeTimeoutRef.current = setInterval(() => {
+      setAssessmentText(text.slice(0, i));
+      i++;
+      if (i > text.length) {
+        clearInterval(typeTimeoutRef.current);
+        setIsTyping(false);
+      }
+    }, speed);
+  };
+
+  const drawHeatmap = () => {
+    const canvas = heatmapCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cellSize = canvas.width / GRID_SIZE;
 
-    const draw = () => {
-      const w = canvas.width;
-      const h = canvas.height;
-      const cellSize = w / GRID_SIZE;
-
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#060E06';
-      ctx.fillRect(0, 0, w, h);
-
-      // Define irregular polygon field shape
-      const vertices = [
-        [w * 0.1, h * 0.1],
-        [w * 0.8, h * 0.15],
-        [w * 0.95, h * 0.6],
-        [w * 0.85, h * 0.9],
-        [w * 0.4, h * 0.95],
-        [w * 0.05, h * 0.7],
-      ];
-
-      ctx.save();
-      if (layers.boundary) {
-        ctx.beginPath();
-        ctx.moveTo(vertices[0][0], vertices[0][1]);
-        vertices.slice(1).forEach(v => ctx.lineTo(v[0], v[1]));
-        ctx.closePath();
-        ctx.clip();
+    let y = 0;
+    const paintRow = () => {
+      if (!heatmapCanvasRef.current) return;
+      if (y >= GRID_SIZE) {
+        drawDashedOverlay();
+        return;
       }
-
-      // Draw Grid
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          const val = BASE_NDVI[y * GRID_SIZE + x];
-          ctx.fillStyle = getNDVIColor(val, viewMode);
-          ctx.fillRect(x * cellSize, y * cellSize, Math.ceil(cellSize), Math.ceil(cellSize));
-        }
+      for (let x = 0; x < GRID_SIZE; x++) {
+        const val = 0.4 + Math.random() * 0.5;
+        ctx.fillStyle = val > 0.8 ? '#1B5E20' : val > 0.6 ? '#4CAF50' : val > 0.4 ? '#F57F17' : '#B71C1C';
+        ctx.fillRect(Math.ceil(x * cellSize), Math.ceil(y * cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
       }
-      ctx.restore();
-
-      // Disease Zone Overlay (Animated Crawling Border)
-      if (layers.disease) {
-        ctx.strokeStyle = 'rgba(239,83,80,0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.lineDashOffset = -dashOffsetRef.current;
-        ctx.strokeRect(30 * cellSize, 5 * cellSize, 15 * cellSize, 10 * cellSize);
-        dashOffsetRef.current += 0.3;
-      }
-
-      // Irrigation zone highlight
-      if (layers.irrigation) {
-        ctx.fillStyle = 'rgba(239,83,80,0.1)';
-        ctx.fillRect(0, 44 * cellSize, w, 4 * cellSize);
-      }
-
-      // Boundary outline
-      if (layers.boundary) {
-        ctx.setLineDash([]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(vertices[0][0], vertices[0][1]);
-        vertices.slice(1).forEach(v => ctx.lineTo(v[0], v[1]));
-        ctx.closePath();
-        ctx.stroke();
-      }
-
-      // Compass Rose
-      ctx.save();
-      ctx.translate(w - 40, 40);
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.beginPath();
-      ctx.moveTo(0, -15); ctx.lineTo(0, 15);
-      ctx.moveTo(-15, 0); ctx.lineTo(15, 0);
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.font = '10px Inter';
-      ctx.fillText('N', -4, -18);
-      ctx.restore();
-
-      // Scale Bar
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillRect(20, h - 30, 100, 1);
-      ctx.font = '10px Inter';
-      ctx.fillText('0 — 500m', 20, h - 15);
-
-      animationFrameId = requestAnimationFrame(draw);
+      y++;
+      setTimeout(paintRow, 2); // 2ms stagger as requested
     };
 
-    draw();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [viewMode, layers]);
+    const drawDashedOverlay = () => {
+      let offset = 0;
+      const animate = () => {
+        if (!heatmapCanvasRef.current) return;
+        const ctx = heatmapCanvasRef.current.getContext('2d');
+        if (!ctx) return;
 
+        // Re-paint just to handle the dashed overlay animation
+        // In a real app we'd layer canvases, but for MVP we redraw the overlay
+        ctx.save();
+        ctx.strokeStyle = 'rgba(239, 83, 80, 0.8)';
+        ctx.setLineDash([6, 4]);
+        ctx.lineDashOffset = -offset;
+        ctx.lineWidth = 2;
+        // Crawling dashed border around stress patch
+        ctx.strokeRect(canvas.width * 0.6, 20, canvas.width * 0.3, canvas.height * 0.3);
+        ctx.restore();
+        
+        offset += 0.3;
+        requestAnimationFrame(animate);
+      };
+      animate();
+    };
+
+    paintRow();
+  };
+
+  // Canvas-based tabbed charts
   useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await diseaseTreatmentProtocol({ 
-          diseaseName: 'Early Blight', 
-          cropAndLocation: 'Tomato, Nasik' 
-        });
-        setProtocol(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingProtocol(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const handleSync = () => {
-    setSyncing(true);
-    setTimeout(() => setSyncing(false), 1500);
-  };
-
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
+    const canvas = chartCanvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const gridX = Math.floor((x / rect.width) * GRID_SIZE);
-    const gridY = Math.floor((y / rect.height) * GRID_SIZE);
-    const val = BASE_NDVI[gridY * GRID_SIZE + gridX];
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    setHoverData({ x, y, val, visible: true });
-    setTimeout(() => setHoverData(prev => ({ ...prev, visible: false })), 3000);
-  };
+    const drawChart = () => {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
 
-  const healthData = [
-    { day: -30, health: 85 },
-    { day: -20, health: 82 },
-    { day: -10, health: 78 },
-    { day: 0, health: 74, isToday: true },
-    { day: 10, with: 76, without: 65 },
-    { day: 20, with: 80, without: 55 },
-    { day: 30, with: 84, without: 45 },
-  ];
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        const y = (h / 4) * i;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      // Trend Curve
+      ctx.beginPath();
+      ctx.strokeStyle = activeChartTab === 'Rainfall' ? '#1976D2' : NDVI_COLORS.healthy;
+      ctx.lineWidth = 2;
+      const points = Array.from({ length: 30 }, (_, i) => ({
+        x: (w / 29) * i,
+        y: h * 0.7 - Math.sin(i / 3) * 40 - Math.random() * 15
+      }));
+
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+
+      // Confidence Band
+      ctx.fillStyle = activeChartTab === 'Rainfall' ? 'rgba(25, 118, 210, 0.08)' : 'rgba(76, 175, 80, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y - 20);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y - (20 + i * 0.4));
+      }
+      for (let i = points.length - 1; i >= 0; i--) {
+        ctx.lineTo(points[i].x, points[i].y + (20 + i * 0.4));
+      }
+      ctx.fill();
+    };
+
+    drawChart();
+  }, [activeChartTab, selectedField]);
 
   return (
-    <div className="space-y-8 animate-in pb-20">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-headline font-black text-white flex items-center gap-3">
-            Field Intelligence
-          </h2>
-          <p className="text-[13px] opacity-40 font-body flex items-center gap-2">
-            <Satellite size={14} className="opacity-40" />
-            Sentinel-2 · Last sync 2h ago
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleSync}
-            className="bg-white/5 border-white/10 hover:bg-white/10 text-white gap-2 h-9"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing...' : 'Sync Now'}
-          </Button>
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-white/10 transition-colors">
-            <Calendar size={14} className="opacity-40" />
-            <span className="text-[13px] font-medium">07 Jun 2026</span>
-            <ChevronDown size={14} className="opacity-40" />
-          </div>
+    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden flex flex-col bg-[#0A0F0A]">
+      {/* Search Header */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-4 animate-in fade-in slide-in-from-top-4 duration-1000">
+        <div className="relative group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-primary transition-colors" size={18} />
+          <Input 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search country, state, or field coordinates..."
+            className="w-full h-14 pl-12 bg-black/60 border-white/10 backdrop-blur-2xl rounded-2xl text-lg font-light focus-visible:ring-primary/40 focus-visible:border-primary/50 transition-all shadow-2xl"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Left Panel: Heatmap */}
-        <div className="lg:col-span-7 bg-white/[0.03] border border-white/7 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
-          <div className="p-5 border-b border-white/5 flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-white/70">NDVI Heatmap</h3>
-            <div className="flex p-0.5 bg-white/5 rounded-lg border border-white/10">
-              {['NDVI', 'RGB', 'Thermal'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode as any)}
-                  className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all ${
-                    viewMode === mode ? 'bg-primary/20 text-primary border border-primary/30' : 'text-white/40'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Main Map Container */}
+      <div id="satellite-map" className="flex-1 w-full" />
 
-          <div className="relative flex-1 bg-[#060E06] p-4">
-            <canvas 
-              ref={canvasRef} 
-              width={800} height={800} 
-              onClick={handleCanvasClick}
-              className="w-full aspect-square cursor-crosshair rounded-xl" 
-            />
-            {hoverData.visible && (
-              <div 
-                className="absolute z-50 pointer-events-none bg-[#0A1A0A]/95 border border-white/10 p-3 rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-                style={{ left: hoverData.x, top: hoverData.y }}
-              >
-                <p className="text-sm font-bold text-white">NDVI: {hoverData.val.toFixed(2)}</p>
-                <p className="text-[10px] uppercase font-black tracking-widest text-orange-400 mt-1">Moderate Stress</p>
-                <div className="mt-2 pt-2 border-t border-white/5 text-[9px] opacity-30 font-code">
-                  FIELD_CELL_X{Math.floor(hoverData.x/10)}_Y{Math.floor(hoverData.y/10)}
-                </div>
+      {/* Side Glass Panel */}
+      <div 
+        className={cn(
+          "fixed top-[56px] right-0 h-[calc(100vh-56px)] w-full md:w-[420px] glass-panel z-[1100] transition-transform duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] flex flex-col",
+          selectedField ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <button 
+          onClick={() => setSelectedField(null)}
+          className="absolute top-4 left-4 p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+        >
+          <ArrowLeft size={20} />
+        </button>
+
+        <div className="flex-1 overflow-y-auto no-scrollbar p-8 space-y-10 pt-16">
+          <section>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-2xl font-headline font-black text-white">{selectedField?.name || "Target Field"}</h3>
+                <p className="text-[12px] opacity-40 font-code tracking-tight">LAT: {selectedField?.lat?.toFixed(4) || "19.99"} · LNG: {selectedField?.lng?.toFixed(4) || "73.78"}</p>
               </div>
-            )}
-          </div>
-
-          <div className="p-5 bg-card/20 space-y-6">
-            <div className="flex flex-wrap items-center gap-4 opacity-50">
-              {['Severe', 'Critical', 'Moderate', 'Good', 'Peak'].map((label, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: getNDVIColor(i * 0.2 + 0.1, 'NDVI') }} />
-                  <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
-                </div>
-              ))}
+              <Badge className="bg-red-500/10 text-red-400 border-red-500/30">CRITICAL RISK</Badge>
             </div>
 
-            <div className="flex flex-wrap items-center gap-8 pt-4 border-t border-white/5">
-              {[
-                { id: 'disease', label: 'Disease Overlay' },
-                { id: 'irrigation', label: 'Irrigation Zones' },
-                { id: 'boundary', label: 'Field Boundary' }
-              ].map((layer) => (
-                <div key={layer.id} className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setLayers(prev => ({ ...prev, [layer.id]: !prev[layer.id as keyof typeof layers] }))}
-                    className={`w-8 h-4.5 rounded-full relative transition-colors ${layers[layer.id as keyof typeof layers] ? 'bg-primary' : 'bg-white/10'}`}
-                  >
-                    <div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all ${layers[layer.id as keyof typeof layers] ? 'left-4' : 'left-0.5'}`} />
-                  </button>
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-white/40">{layer.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Panel: Report */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-white/[0.03] border border-white/7 rounded-2xl p-6 space-y-8 flex-1">
-            <div className="flex justify-between items-start">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-white/70">Disease Report</h3>
-              <span className="text-[10px] italic opacity-30">AI-generated · Groq</span>
-            </div>
-
-            {/* Severity Meter */}
-            <div className="space-y-3">
-              <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest">
-                <span className="opacity-40">Field Health</span>
-                <span className="text-primary">62% Healthy</span>
-              </div>
-              <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-primary/20" />
-                <div 
-                  className="h-full bg-primary relative transition-all duration-1000 ease-out" 
-                  style={{ width: '62%' }} 
-                />
-              </div>
-              <div className="flex justify-between px-1 opacity-20">
-                {[1, 2, 3].map(i => <div key={i} className="w-px h-1.5 bg-white" />)}
+            <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-white/5 bg-black/40 shadow-inner">
+              <canvas ref={heatmapCanvasRef} width={400} height={400} className="w-full h-full" />
+              <div className="absolute bottom-4 right-4 flex flex-col items-end">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-1">Live Feed</span>
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               </div>
             </div>
+          </section>
 
-            {/* Findings Timeline */}
-            <div className="space-y-6 relative pl-6">
-              <div className="absolute left-[3px] top-2 bottom-2 w-px bg-white/10" />
-              {[
-                { title: 'Alternaria solani detected', detail: 'Early blight pathogen across 11% of field.', color: 'text-red-400', confidence: '89%', dot: 'bg-red-400' },
-                { title: 'Humidity correlation active', detail: '78% RH acceleratng spore spread.', color: 'text-orange-400', confidence: '94%', dot: 'bg-orange-400' },
-                { title: 'Inaction risk alert', detail: 'Projected 45% health dip in 18 days.', color: 'text-red-400', confidence: 'Critical', dot: 'bg-red-400 animate-pulse' },
-              ].map((f, i) => (
-                <div key={i} className="relative animate-in" style={{ animationDelay: `${i * 120}ms` }}>
-                  <div className={`absolute -left-[27px] top-1.5 w-2 h-2 rounded-full ${f.dot} ring-4 ring-black`} />
-                  <div className="flex justify-between items-start">
-                    <h4 className="text-[13px] font-bold">{f.title}</h4>
-                    <Badge variant="outline" className={`text-[9px] uppercase border-white/5 ${f.color} bg-white/5`}>{f.confidence}</Badge>
-                  </div>
-                  <p className="text-[11px] opacity-40 mt-1 leading-relaxed">{f.detail}</p>
-                </div>
-              ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col items-center justify-center space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30">Field Health</span>
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <svg className="absolute inset-0 w-full h-full -rotate-90">
+                  <circle cx="50%" cy="50%" r="45%" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+                  <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#4CAF50" strokeWidth="4" strokeDasharray="141" strokeDashoffset="36" strokeLinecap="round" />
+                </svg>
+                <span className="text-xl font-headline font-black">74</span>
+              </div>
             </div>
-
-            {/* Treatment Protocol */}
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 space-y-4">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30">Protocol Execution</h4>
-              {loadingProtocol ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full bg-white/5" />)}
-                </div>
-              ) : (
-                protocol.map((step, i) => (
-                  <div key={i} className="flex gap-4 animate-in" style={{ animationDelay: `${i * 80}ms` }}>
-                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[11px] font-black shrink-0">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[12px] font-bold">{step.action}</span>
-                        <span className="text-[9px] opacity-30 font-mono">~₹{step.cost_inr}</span>
-                      </div>
-                      <p className="text-[10px] opacity-40 leading-relaxed truncate">{step.detail}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[8px] bg-white/5 border-none text-teal-400">{step.product}</Badge>
-                        {step.urgency === 'immediate' && <Clock size={10} className="text-red-400" />}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-center space-y-4">
+              <div className="flex items-center gap-3">
+                <Wind size={14} className="text-blue-400" />
+                <span className="text-sm font-medium">12 km/h NW</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Thermometer size={14} className="text-red-400" />
+                <span className="text-sm font-medium">28.4 °C</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Droplets size={14} className="text-teal-400" />
+                <span className="text-sm font-medium">65% RH</span>
+              </div>
             </div>
           </div>
 
-          {/* Health Projection Chart */}
-          <div className="bg-white/[0.03] border border-white/7 rounded-2xl p-6 h-[200px] flex flex-col">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-4">Field Health Projections</h4>
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={healthData}>
-                  <CartesianGrid strokeDasharray="0" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                  <XAxis dataKey="day" hide />
-                  <YAxis domain={[0, 100]} hide />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#0C1C0C', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px' }}
-                    labelStyle={{ display: 'none' }}
-                  />
-                  <Line type="monotone" dataKey="health" stroke="#4CAF50" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="with" stroke="#4CAF50" strokeWidth={2} strokeDasharray="3 3" dot={false} />
-                  <Line type="monotone" dataKey="without" stroke="#EF5350" strokeWidth={2} strokeDasharray="3 3" dot={false} />
-                  <ReferenceLine x={0} stroke="rgba(255,255,255,0.2)" />
-                </LineChart>
-              </ResponsiveContainer>
+          <section className="bg-primary/5 border border-primary/20 p-6 rounded-3xl relative overflow-hidden group">
+            <Sparkles className="absolute -right-4 -top-4 w-32 h-32 opacity-5 rotate-12 group-hover:scale-110 transition-transform" />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-primary/20 rounded-lg text-primary"><Microscope size={18} /></div>
+              <h4 className="font-bold text-primary tracking-tight">AI Tactical Brief</h4>
             </div>
-            <div className="flex justify-between mt-2 px-1">
-              <span className="text-[9px] font-bold text-red-400 uppercase tracking-widest">No Treatment (45%)</span>
-              <span className="text-[9px] font-bold text-primary uppercase tracking-widest">Target Recovery (84%)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Community Alert Card */}
-      <div className="bg-red-500/[0.03] border border-red-500/15 rounded-3xl p-8 flex flex-col md:flex-row items-center gap-10 shadow-inner">
-        <div className="flex-1 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
-            <h3 className="text-lg font-headline font-black uppercase tracking-tight">Regional Outbreak Alert</h3>
-          </div>
-          <p className="text-sm opacity-50 leading-relaxed max-w-xl">
-            Early blight detected in 7 neighboring farms within a 12km radius. 
-            Automated community-wide protocol activation is recommended to prevent mass spore dispersal.
-          </p>
-          <div className="pt-4 flex flex-col items-start gap-4">
-            <Button 
-              onClick={() => setShowModal(true)}
-              className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 h-14 px-10 rounded-xl font-bold uppercase tracking-widest transition-all"
-            >
-              <Users size={18} className="mr-3" />
-              Broadcast Community Alert
-            </Button>
-            <span className="text-[11px] opacity-30 uppercase font-black tracking-[0.2em]">47 farmers protected this season</span>
-          </div>
-        </div>
-
-        {/* Mini Map Visual */}
-        <div className="w-full md:w-64 h-48 bg-black/40 rounded-2xl border border-white/5 relative overflow-hidden flex items-center justify-center p-4">
-          <div className="grid grid-cols-5 gap-4 opacity-40">
-            {Array.from({ length: 25 }).map((_, i) => (
-              <div 
-                key={i} 
-                className={`w-1.5 h-1.5 rounded-full ${
-                  i === 12 ? 'bg-white scale-150 shadow-[0_0_10px_white]' : 
-                  [2, 8, 11, 19, 23].includes(i) ? 'bg-red-500 animate-pulse' : 'bg-primary'
-                }`} 
-              />
-            ))}
-          </div>
-          {/* Mock Connection Lines */}
-          <svg className="absolute inset-0 pointer-events-none opacity-20">
-            <line x1="50%" y1="50%" x2="20%" y2="20%" stroke="red" strokeWidth="0.5" />
-            <line x1="50%" y1="50%" x2="80%" y2="80%" stroke="red" strokeWidth="0.5" />
-            <line x1="50%" y1="50%" x2="10%" y2="70%" stroke="red" strokeWidth="0.5" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Community Alert Preview Modal (Simulated) */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-md bg-[#0D1F0D] border border-white/10 rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <AlertTriangle className="text-red-500" />
-              Confirm Community Alert
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            <div className="bg-red-500/10 p-5 rounded-2xl border border-red-500/20">
-              <p className="text-sm italic text-red-100/70">
-                "Bhaiyo, hamare khet mein Early Blight detected hua hai. Sentinel-2 satellite alerts show risk is spreading. Please check your fields and use the KrishiShield protocol immediately to stop the spread."
+            <div className="min-h-[80px]">
+              <p className="text-[14px] font-body leading-relaxed text-white/80 italic">
+                {assessmentText}
+                {isTyping && <span className="inline-block w-1.5 h-4 bg-primary ml-1 animate-pulse" />}
               </p>
             </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] uppercase font-black opacity-30">Broadcasting to:</span>
-              <div className="flex -space-x-3">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-[#0D1F0D] bg-primary/40 flex items-center justify-center text-[10px] font-bold">
-                    {String.fromCharCode(64 + i)}
-                  </div>
-                ))}
-                <div className="w-8 h-8 rounded-full border-2 border-[#0D1F0D] bg-white/5 flex items-center justify-center text-[10px] opacity-40">+18</div>
-              </div>
+            <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-20">Uplink: Sentinel-2C</span>
+              <span className="text-[10px] font-bold text-primary/60">T-02:44:11</span>
             </div>
-          </div>
-          <DialogFooter className="flex gap-2 sm:justify-between pt-4">
-            <Button variant="ghost" onClick={() => setShowModal(false)} className="flex-1 rounded-xl">Discard</Button>
-            <Button onClick={() => setShowModal(false)} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl">
-              <Send size={16} className="mr-2" />
-              Send Alert
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </section>
+        </div>
+      </div>
+
+      {/* Bottom Chart Section */}
+      <div className="h-[200px] w-full bg-[#0A1A0A]/98 border-t border-white/5 px-8 flex flex-col relative z-[900] backdrop-blur-md">
+        <div className="flex gap-8 border-b border-white/5">
+          {['NDVI', 'Disease', 'Yield', 'Rainfall'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveChartTab(tab as any)}
+              className={cn(
+                "h-12 px-2 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative",
+                activeChartTab === tab ? "text-primary" : "text-white/30 hover:text-white"
+              )}
+            >
+              {tab} Trend
+              {activeChartTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary" />}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 py-4">
+          <canvas ref={chartCanvasRef} width={1200} height={140} className="w-full h-full opacity-60" />
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .ndvi-glow {
+          filter: blur(40px);
+        }
+        @keyframes radar-sweep {
+          0% { transform: scale(0); opacity: 0.8; }
+          100% { transform: scale(2.5); opacity: 0; }
+        }
+        .radar-pulse::after {
+          content: '';
+          position: absolute;
+          width: 100%; height: 100%;
+          border-radius: 50%;
+          background: rgba(239, 83, 80, 0.4);
+          animation: radar-sweep 2s infinite;
+        }
+      `}</style>
     </div>
   );
 }
