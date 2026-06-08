@@ -14,14 +14,14 @@ export interface GroqOptions {
 }
 
 /**
- * Core Groq client module as specified.
+ * Core Groq client module.
  * Handles fetch, caching, concurrent request deduplication, and JSON validation.
  */
 export async function groq(system: string, user: string, opts: GroqOptions = {}): Promise<any> {
   const startTime = Date.now();
   const {
-    model = 'llama3-70b-8192',
-    temperature = 0.4,
+    model = 'llama-3.3-70b-versatile',
+    temperature = 0.3,
     json = false,
     cacheKey,
     cacheTTL = 3600,
@@ -44,8 +44,9 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
 
   const fetchPromise = (async () => {
     try {
+      // JSON mode requires the word 'JSON' in the prompt and an object structure.
       const systemPrompt = json 
-        ? `${system} Respond ONLY in valid JSON with no markdown or preamble.` 
+        ? `${system} You MUST respond in valid JSON format. If the result is a list, wrap it in a root object.` 
         : system;
 
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -69,7 +70,7 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
         const errorBody = await response.text();
         console.error(`[GROQ] HTTP ERROR ${response.status}: ${errorBody}`);
         if (fallback !== undefined) return fallback;
-        throw new Error(`Groq API returned ${response.status}`);
+        throw new Error(`Groq API returned ${response.status}: ${errorBody}`);
       }
 
       const data = await response.json();
@@ -83,14 +84,6 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
       if (json) {
         try {
           result = JSON.parse(content);
-          // Simple validation against fallback shape if provided
-          if (fallback && typeof fallback === 'object') {
-            const keys = Object.keys(fallback);
-            const match = keys.some(k => k in result);
-            if (!match) {
-              console.warn(`[GROQ] JSON Shape Mismatch for key: ${cacheKey}`);
-            }
-          }
         } catch (e) {
           console.error(`[GROQ] JSON PARSE FAILURE: ${content}`);
           if (fallback !== undefined) return fallback;

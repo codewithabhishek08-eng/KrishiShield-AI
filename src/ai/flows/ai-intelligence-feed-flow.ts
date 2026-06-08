@@ -42,7 +42,7 @@ Generate 3 short intelligence briefings (max 40 words each) about:
 (1) current tomato market conditions in Maharashtra,
 (2) weather impact on Nasik region crops this week,
 (3) one actionable biosecurity recommendation.
-Return JSON array with fields: type (PRICE|WEATHER|DISEASE), timestamp (HH:MM format), and body (string).`;
+Return a JSON object with a single key 'briefings' containing an array of objects with fields: type (PRICE|WEATHER|DISEASE), timestamp (HH:MM format), and body (string).`;
 
     const user = "Generate the briefings now.";
 
@@ -52,7 +52,7 @@ Return JSON array with fields: type (PRICE|WEATHER|DISEASE), timestamp (HH:MM fo
       temperature: 0.4
     });
 
-    return output || [];
+    return output?.briefings || [];
   }
 );
 

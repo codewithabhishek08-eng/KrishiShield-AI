@@ -49,9 +49,9 @@ export function FinanceScreen() {
             system: "You write short, emotionally honest impact stories. No corporate speak. No exaggeration. Write in first person as the farmer. It should feel true. Plain text, no formatting.",
             user: "Write a 3-sentence story from Ramesh Kumar, tomato farmer, Nasik. He used KrishiShield AI to lock his price before a monsoon crash, received a harvest-backed loan at 1%, and increased his income by 22% this season.",
             opts: {
-              model: 'llama3-8b-8192',
+              model: 'llama-3.3-70b-versatile',
               temperature: 0.75,
-              cacheKey: 'impact-story-ramesh-v1',
+              cacheKey: 'impact-story-ramesh-v2',
               cacheTTL: 86400 // 24 hours
             }
           })
@@ -70,12 +70,13 @@ export function FinanceScreen() {
         const res = await fetch('/api/groq', {
           method: 'POST',
           body: JSON.stringify({
-            system: "You are an AI loan officer explaining a decision to a farmer in simple, encouraging language. No financial jargon. Respond in JSON with a 'summary' string and 'factors' array of objects.",
+            system: "You are an AI loan officer explaining a decision to a farmer in simple, encouraging language. No financial jargon. Respond in a JSON object with a 'summary' string and 'factors' array of objects.",
             user: "Farmer: Ramesh Kumar. Crop Health Score: 82/100. Satellite verified: yes. Risk score: 18/100. Approved loan: ₹1,40,000 at 1% per annum. Explain why in simple terms.",
             opts: {
               json: true,
+              model: 'llama-3.3-70b-versatile',
               temperature: 0.45,
-              cacheKey: 'loan-eligibility-82-18',
+              cacheKey: 'loan-eligibility-82-18-v2',
               cacheTTL: 1800 // 30 minutes
             }
           })
@@ -144,7 +145,7 @@ export function FinanceScreen() {
                         <div className="bg-muted/30 p-4 rounded-2xl border border-white/5 space-y-3">
                           <p className="text-sm opacity-80 leading-relaxed">{explanation.summary}</p>
                           <div className="space-y-2">
-                            {explanation.factors && explanation.factors.length > 0 && explanation.factors.map((f, i) => (
+                            {explanation.factors && explanation.factors.length > 0 ? explanation.factors.map((f, i) => (
                               <div key={i} className="flex items-center gap-3">
                                 <div className={`w-1.5 h-1.5 rounded-full ${f.impact === 'positive' ? 'bg-primary' : 'bg-muted'}`} />
                                 <div className="flex-1">
@@ -152,7 +153,9 @@ export function FinanceScreen() {
                                   <span className="text-xs opacity-60">{f.explanation}</span>
                                 </div>
                               </div>
-                            ))}
+                            )) : (
+                              <p className="text-[10px] opacity-40 italic">High reliability score and satellite verified field health.</p>
+                            )}
                           </div>
                         </div>
                       )}
