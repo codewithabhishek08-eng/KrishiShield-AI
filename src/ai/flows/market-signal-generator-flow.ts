@@ -30,7 +30,8 @@ const marketSignalGeneratorFlow = ai.defineFlow(
     outputSchema: MarketSignalOutputSchema,
   },
   async (input) => {
-    const system = `You are a professional agricultural commodity analyst for India. Respond ONLY in valid JSON.`;
+    const system = `You are a professional agricultural commodity analyst for India. Respond ONLY in valid JSON.
+    The 'sentiment' field MUST be exactly one of: 'bullish', 'bearish', or 'neutral' (all lowercase).`;
     const user = `Generate 3 specific market signals for ${input.cropName} in ${input.region}. Current trend is ${input.trend || 'stable'}. 
     Consider eNAM data, weather forecasts, and harvest cycles.
     Return JSON object with key 'signals' containing an array. Schema: {emoji, title (max 5 words), detail (max 20 words), sentiment: 'bullish'|'bearish'|'neutral', pct_impact: number (-20 to +20)}.`;
@@ -41,7 +42,20 @@ const marketSignalGeneratorFlow = ai.defineFlow(
       temperature: 0.4
     });
 
-    return output?.signals || [];
+    // Normalize output to ensure enum compliance
+    const signals = (output?.signals || []).map((s: any) => {
+      let sentiment = String(s.sentiment || 'neutral').toLowerCase();
+      if (!['bullish', 'bearish', 'neutral'].includes(sentiment)) sentiment = 'neutral';
+      return {
+        emoji: String(s.emoji || '📈'),
+        title: String(s.title || 'Market Update'),
+        detail: String(s.detail || 'Monitoring price action.'),
+        sentiment: sentiment as 'bullish' | 'bearish' | 'neutral',
+        pct_impact: Number(s.pct_impact) || 0,
+      };
+    });
+
+    return signals;
   }
 );
 

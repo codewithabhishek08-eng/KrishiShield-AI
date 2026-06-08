@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow for generating step-by-step treatment protocols for plant diseases.
@@ -38,20 +37,34 @@ const diseaseTreatmentProtocolFlow = ai.defineFlow(
   },
   async (input) => {
     const system = `You are an expert agricultural advisor and plant pathologist. 
-    Provide 3 clear treatment steps for the specified disease and crop. 
-    Return a JSON object with a key 'treatment_steps' containing an array of objects.`;
+    Provide 3 clear treatment steps for the specified disease and crop. Respond ONLY in valid JSON.
+    The 'urgency' field MUST be exactly one of: 'immediate', 'soon', or 'monitor' (all lowercase).`;
     
     const user = `Disease: ${input.diseaseName}, Crop/Location: ${input.cropAndLocation}. 
     Each object needs: step_number (int), action (string, max 5 words), detail (string, max 25 words), 
-    product (string), urgency (immediate|soon|monitor), cost_inr (number).`;
+    product (string), urgency (immediate|soon|monitor), cost_inr (number).
+    Return JSON: { "treatment_steps": [...] }`;
 
     const output = await groq(system, user, {
       json: true,
       temperature: 0.3
     });
 
-    // Extract the array from the wrapper object to satisfy the outputSchema
-    return output?.treatment_steps || [];
+    // Extract the array from the wrapper object and normalize enums
+    const steps = (output?.treatment_steps || []).map((s: any) => {
+      let urgency = String(s.urgency || 'monitor').toLowerCase();
+      if (!['immediate', 'soon', 'monitor'].includes(urgency)) urgency = 'monitor';
+      return {
+        step_number: Number(s.step_number) || 1,
+        action: String(s.action || 'Unknown Action'),
+        detail: String(s.detail || 'Refer to field guide.'),
+        product: String(s.product || 'Standard Treatment'),
+        urgency: urgency as 'immediate' | 'soon' | 'monitor',
+        cost_inr: Number(s.cost_inr) || 0,
+      };
+    });
+
+    return steps;
   }
 );
 
