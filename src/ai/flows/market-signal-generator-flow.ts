@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate AI-powered market signal cards using Groq.
@@ -37,11 +36,11 @@ const marketSignalGeneratorFlow = ai.defineFlow(
   },
   async (input) => {
     const system = `You are an agricultural market analyst. Generate 4 market signals for ${input.crop} prices in ${input.region} for the ${input.duration}.`;
-    const user = `Return a JSON object with a single key 'signals' containing an array of 4 objects. Each object needs: icon_name (emoji), title (max 4 words), detail (max 20 words), sentiment (bullish|bearish|neutral).`;
+    const user = `Return a JSON object with a single key 'signals' containing an array of 4 objects. Each object needs: icon_name (a relevant emoji), title (4 words max), detail (one sentence, max 20 words), sentiment (bullish|bearish|neutral).`;
 
     const output = await groq(system, user, {
       json: true,
-      cacheKey: `market-signals-${input.crop}-v2`,
+      cacheKey: `market-signals-${input.crop}-v3`,
       temperature: 0.4
     });
 
