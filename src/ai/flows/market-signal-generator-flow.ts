@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview A Genkit flow to generate AI-powered market signal cards for agricultural produce.
+ * @fileOverview A Genkit flow to generate AI-powered market signal cards using Groq.
  *
  * - generateMarketSignals - A function that handles the generation of market signals.
  * - MarketSignalInput - The input type for the generateMarketSignals function.
@@ -29,6 +29,7 @@ export type MarketSignalOutput = z.infer<typeof MarketSignalOutputSchema>;
 
 const marketSignalPrompt = ai.definePrompt({
   name: 'marketSignalPrompt',
+  model: 'groq/llama-3.3-70b-versatile',
   input: {schema: MarketSignalInputSchema},
   output: {schema: MarketSignalOutputSchema},
   config: {
@@ -42,18 +43,7 @@ Each signal must have:
 - detail (one sentence, max 20 words)
 - sentiment (bullish|bearish|neutral)
 
-Return the response as a JSON array of objects. Ensure the JSON strictly adheres to this structure:
-\`\`\`json
-[
-  {
-    "icon_name": "string",
-    "title": "string",
-    "detail": "string",
-    "sentiment": "bullish | bearish | neutral"
-  }
-]
-\`\`\`
-`,
+Return the response as a JSON array of objects.`,
 });
 
 const marketSignalGeneratorFlow = ai.defineFlow(
@@ -71,32 +61,12 @@ const marketSignalGeneratorFlow = ai.defineFlow(
       return output;
     } catch (error) {
       console.error('Error generating market signals:', error);
-      // Graceful fallback payload as per requirements.
+      // Fallback signals
       return [
-        {
-          icon_name: '⚠️',
-          title: 'Data Unavailable',
-          detail: 'Market signals could not be fetched.',
-          sentiment: 'neutral',
-        },
-        {
-          icon_name: '🔄',
-          title: 'Refreshing Soon',
-          detail: 'Please try again in a moment for updates.',
-          sentiment: 'neutral',
-        },
-        {
-          icon_name: '📈',
-          title: 'Steady Market',
-          detail: 'Current trends indicate stability.',
-          sentiment: 'neutral',
-        },
-        {
-          icon_name: '🌾',
-          title: 'Harvest Watch',
-          detail: 'Monitor harvest reports closely.',
-          sentiment: 'neutral',
-        },
+        { icon_name: '⚠️', title: 'Data Unavailable', detail: 'Market signals could not be fetched.', sentiment: 'neutral' },
+        { icon_name: '🔄', title: 'Refreshing Soon', detail: 'Please try again in a moment for updates.', sentiment: 'neutral' },
+        { icon_name: '📈', title: 'Steady Market', detail: 'Current trends indicate stability.', sentiment: 'neutral' },
+        { icon_name: '🌾', title: 'Harvest Watch', detail: 'Monitor harvest reports closely.', sentiment: 'neutral' },
       ];
     }
   }

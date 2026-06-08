@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for generating personalized impact stories.
+ * @fileOverview This file defines a Genkit flow for generating personalized impact stories using Groq.
  *
  * - impactStoryGenerator: A function that generates a personalized impact story.
  * - ImpactStoryGeneratorInput: The input type for the impactStoryGenerator function.
@@ -24,6 +24,7 @@ export type ImpactStoryGeneratorOutput = z.infer<typeof ImpactStoryGeneratorOutp
 
 const impactStoryPrompt = ai.definePrompt({
   name: 'impactStoryPrompt',
+  model: 'groq/llama-3.3-70b-versatile',
   input: { schema: ImpactStoryGeneratorInputSchema },
   output: { schema: ImpactStoryGeneratorOutputSchema },
   config: {

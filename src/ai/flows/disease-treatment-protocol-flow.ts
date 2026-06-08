@@ -32,6 +32,7 @@ export async function diseaseTreatmentProtocol(input: DiseaseTreatmentProtocolIn
 
 const prompt = ai.definePrompt({
   name: 'diseaseTreatmentProtocolPrompt',
+  model: 'groq/llama-3.3-70b-versatile',
   input: {schema: DiseaseTreatmentProtocolInputSchema},
   output: {schema: DiseaseTreatmentProtocolOutputSchema},
   config: {

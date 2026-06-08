@@ -24,6 +24,7 @@ export type AiIntelligenceFeedOutput = z.infer<typeof AiIntelligenceFeedOutputSc
 
 const aiIntelligenceFeedPrompt = ai.definePrompt({
   name: 'aiIntelligenceFeedPrompt',
+  model: 'groq/llama-3.3-70b-versatile',
   input: {
     schema: z.object({
       currentDate: z.string().describe('The current date in a human-readable format.'),
@@ -56,7 +57,6 @@ const aiIntelligenceFeedFlow = ai.defineFlow(
       day: 'numeric',
     });
     const {output} = await aiIntelligenceFeedPrompt({currentDate});
-    // The prompt is configured to return a JSON array, which Genkit automatically parses to `output`.
     return output!;
   }
 );
