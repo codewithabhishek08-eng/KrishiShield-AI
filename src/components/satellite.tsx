@@ -1,15 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Satellite, Search, ArrowLeft, Wind, Thermometer, 
   Droplets, Microscope, Sparkles, Map as MapIcon,
-  Info, AlertTriangle, RefreshCw
+  Info, AlertTriangle, RefreshCw, Activity,
+  TrendingUp, BarChart3, CloudRain, Target
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getFieldAssessment } from '@/ai/flows/field-assessment-flow';
+import { getNdviInsight } from '@/ai/flows/ndvi-insight-flow';
+import { getDiseaseInsight } from '@/ai/flows/disease-insight-flow';
+import { getYieldInsight } from '@/ai/flows/yield-insight-flow';
+import { getRainfallInsight } from '@/ai/flows/rainfall-insight-flow';
 
 // Leaflet is client-side only
 import 'leaflet/dist/leaflet.css';
@@ -22,17 +27,127 @@ const NDVI_COLORS = {
 
 const GRID_SIZE = 48;
 
+/**
+ * A "Tin Box" Frosted Glass Intelligence Card with a Canvas chart and Groq insight.
+ */
+function IntelligenceCard({ 
+  title, 
+  icon: Icon, 
+  drawChart, 
+  insightFlow, 
+  insightData,
+  index 
+}: { 
+  title: string; 
+  icon: any; 
+  drawChart: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
+  insightFlow: (data: any) => Promise<{ insight: string }>;
+  insightData: any;
+  index: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [insight, setInsight] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [typewritten, setTypewritten] = useState('');
+
+  const fetchInsight = useCallback(async () => {
+    setLoading(true);
+    setTypewritten('');
+    try {
+      const res = await insightFlow(insightData);
+      setInsight(res.insight);
+      
+      // Typewriter effect
+      let i = 0;
+      const text = res.insight;
+      const interval = setInterval(() => {
+        setTypewritten(text.slice(0, i));
+        i++;
+        if (i > text.length) clearInterval(interval);
+      }, 20);
+    } catch (e) {
+      setInsight("Unable to uplink to AI advisor. Retrying...");
+    } finally {
+      setLoading(false);
+    }
+  }, [insightFlow, insightData]);
+
+  useEffect(() => {
+    fetchInsight();
+  }, [fetchInsight]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Animate line draw on entry
+    let progress = 0;
+    const animate = () => {
+      progress += 0.02;
+      if (progress > 1) progress = 1;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.globalAlpha = progress;
+      drawChart(ctx, canvas.width, canvas.height);
+      ctx.restore();
+      
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    animate();
+  }, [drawChart]);
+
+  return (
+    <div 
+      className="tin-box animate-in"
+      style={{ animationDelay: `${index * 150}ms` }}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg">
+            <Icon size={16} className="text-primary" />
+          </div>
+          <h4 className="text-[11px] font-black uppercase tracking-widest text-white/60">{title}</h4>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+          <span className="text-[9px] font-bold uppercase text-white/20">Live</span>
+        </div>
+      </div>
+
+      <div className="flex-1 relative mb-4">
+        <canvas ref={canvasRef} width={400} height={140} className="w-full h-[140px]" />
+      </div>
+
+      <div className="relative">
+        <div className="ai-strip">
+          <div className="flex justify-between items-start mb-1">
+            <span className="text-[9px] font-black uppercase text-primary/40 tracking-tighter">AI Tactical Insight</span>
+            <button onClick={fetchInsight} className="text-white/20 hover:text-primary transition-colors">
+              <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          <p className="text-[12px] font-body text-white/70 leading-relaxed italic min-h-[36px]">
+            {loading && <span className="skeleton-line w-full block h-3" />}
+            {typewritten}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SatelliteScreen() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedField, setSelectedField] = useState<any>(null);
-  const [activeChartTab, setActiveChartTab] = useState<'NDVI' | 'Disease' | 'Yield' | 'Rainfall'>('NDVI');
   const [assessmentText, setAssessmentText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   const mapRef = useRef<any>(null);
   const heatmapCanvasRef = useRef<HTMLCanvasElement>(null);
-  const chartCanvasRef = useRef<HTMLCanvasElement>(null);
   const typeTimeoutRef = useRef<any>(null);
 
   // Initialize Map
@@ -53,10 +168,10 @@ export function SatelliteScreen() {
       attribution: '&copy; CartoDB'
     }).addTo(map);
 
-    // Mock Regional Overlays (Glow)
+    // Mock Regional Overlays
     const regionalData = [
-      { coords: [[18, 70], [22, 70], [22, 78], [18, 78]], color: NDVI_COLORS.healthy }, // Maharashtra
-      { coords: [[28, 74], [32, 74], [32, 77], [28, 77]], color: NDVI_COLORS.stressed }, // Punjab
+      { coords: [[18, 70], [22, 70], [22, 78], [18, 78]], color: NDVI_COLORS.healthy },
+      { coords: [[28, 74], [32, 74], [32, 77], [28, 77]], color: NDVI_COLORS.stressed },
     ];
 
     regionalData.forEach(region => {
@@ -92,10 +207,13 @@ export function SatelliteScreen() {
 
     // Cinematic Zoom Entrance
     setTimeout(() => {
-      map.flyTo([19.9975, 73.7898], 14, { duration: 3.5, easeLinearity: 0.25 });
-      setTimeout(() => {
-        handleFieldSelect({ name: "Ramesh's Field 44B", lat: 19.9975, lng: 73.7898 });
-      }, 3800);
+      if (map) {
+        map.invalidateSize();
+        map.flyTo([19.9975, 73.7898], 14, { duration: 3.5, easeLinearity: 0.25 });
+        setTimeout(() => {
+          handleFieldSelect({ name: "Ramesh's Field 44B", lat: 19.9975, lng: 73.7898 });
+        }, 3800);
+      }
     }, 1500);
 
     return () => {
@@ -165,7 +283,7 @@ export function SatelliteScreen() {
         ctx.fillRect(Math.ceil(x * cellSize), Math.ceil(y * cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
       }
       y++;
-      setTimeout(paintRow, 2); // 2ms stagger as requested
+      setTimeout(paintRow, 2);
     };
 
     const drawDashedOverlay = () => {
@@ -175,14 +293,11 @@ export function SatelliteScreen() {
         const ctx = heatmapCanvasRef.current.getContext('2d');
         if (!ctx) return;
 
-        // Re-paint just to handle the dashed overlay animation
-        // In a real app we'd layer canvases, but for MVP we redraw the overlay
         ctx.save();
         ctx.strokeStyle = 'rgba(239, 83, 80, 0.8)';
         ctx.setLineDash([6, 4]);
         ctx.lineDashOffset = -offset;
         ctx.lineWidth = 2;
-        // Crawling dashed border around stress patch
         ctx.strokeRect(canvas.width * 0.6, 20, canvas.width * 0.3, canvas.height * 0.3);
         ctx.restore();
         
@@ -195,56 +310,54 @@ export function SatelliteScreen() {
     paintRow();
   };
 
-  // Canvas-based tabbed charts
-  useEffect(() => {
-    const canvas = chartCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Chart Rendering Logic
+  const drawNdviChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    for(let i=0; i<5; i++) {
+      ctx.beginPath(); ctx.moveTo(0, h/4*i); ctx.lineTo(w, h/4*i); ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.strokeStyle = '#4CAF50';
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#4CAF50';
+    ctx.moveTo(0, h*0.3);
+    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.3 + Math.sin(i/3)*20 + Math.random()*10);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  };
 
-    const drawChart = () => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+  const drawDiseaseChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.strokeStyle = '#EF5350';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.8);
+    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.8 - Math.pow(i, 1.2)/2);
+    ctx.stroke();
+  };
 
-      // Grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 5; i++) {
-        const y = (h / 4) * i;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      }
+  const drawYieldChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.fillStyle = 'rgba(76, 175, 80, 0.1)';
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.5);
+    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.5 - 20 - i*0.5);
+    for(let i=29; i>=0; i--) ctx.lineTo(w/29*i, h*0.5 + 20 + i*0.5);
+    ctx.fill();
+    ctx.strokeStyle = '#81C784';
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.5);
+    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.5 - i);
+    ctx.stroke();
+  };
 
-      // Trend Curve
-      ctx.beginPath();
-      ctx.strokeStyle = activeChartTab === 'Rainfall' ? '#1976D2' : NDVI_COLORS.healthy;
-      ctx.lineWidth = 2;
-      const points = Array.from({ length: 30 }, (_, i) => ({
-        x: (w / 29) * i,
-        y: h * 0.7 - Math.sin(i / 3) * 40 - Math.random() * 15
-      }));
-
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y);
-      }
-      ctx.stroke();
-
-      // Confidence Band
-      ctx.fillStyle = activeChartTab === 'Rainfall' ? 'rgba(25, 118, 210, 0.08)' : 'rgba(76, 175, 80, 0.08)';
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y - 20);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y - (20 + i * 0.4));
-      }
-      for (let i = points.length - 1; i >= 0; i--) {
-        ctx.lineTo(points[i].x, points[i].y + (20 + i * 0.4));
-      }
-      ctx.fill();
-    };
-
-    drawChart();
-  }, [activeChartTab, selectedField]);
+  const drawRainfallChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    const bars = [12, 45, 32, 10, 8, 22, 60];
+    const bw = w / 15;
+    ctx.fillStyle = '#1976D2';
+    bars.forEach((v, i) => {
+      ctx.fillRect(bw*2*i + bw, h - v, bw, v);
+    });
+  };
 
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden flex flex-col bg-[#0A0F0A]">
@@ -344,32 +457,46 @@ export function SatelliteScreen() {
         </div>
       </div>
 
-      {/* Bottom Chart Section */}
-      <div className="h-[200px] w-full bg-[#0A1A0A]/98 border-t border-white/5 px-8 flex flex-col relative z-[900] backdrop-blur-md">
-        <div className="flex gap-8 border-b border-white/5">
-          {['NDVI', 'Disease', 'Yield', 'Rainfall'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveChartTab(tab as any)}
-              className={cn(
-                "h-12 px-2 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative",
-                activeChartTab === tab ? "text-primary" : "text-white/30 hover:text-white"
-              )}
-            >
-              {tab} Trend
-              {activeChartTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary" />}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1 py-4">
-          <canvas ref={chartCanvasRef} width={1200} height={140} className="w-full h-full opacity-60" />
+      {/* 2x2 Grid of Intelligence Cards */}
+      <div className="relative z-[900] bg-[#0A1A0A]/98 border-t border-white/5 p-6 overflow-y-auto no-scrollbar max-h-[400px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto">
+          <IntelligenceCard 
+            index={0}
+            title="NDVI Trend" 
+            icon={TrendingUp} 
+            drawChart={drawNdviChart}
+            insightFlow={getNdviInsight}
+            insightData={{ crop: "Tomato", location: selectedField?.name || "Nasik", current: 0.58, previous: 0.71 }}
+          />
+          <IntelligenceCard 
+            index={1}
+            title="Disease Probability" 
+            icon={Activity} 
+            drawChart={drawDiseaseChart}
+            insightFlow={getDiseaseInsight}
+            insightData={{ value: 42, humidity: 78, temp: 28 }}
+          />
+          <IntelligenceCard 
+            index={2}
+            title="Yield Forecast" 
+            icon={Target} 
+            drawChart={drawYieldChart}
+            insightFlow={getYieldInsight}
+            insightData={{ projected: 3.2, average: 4.1 }}
+          />
+          <IntelligenceCard 
+            index={3}
+            title="Rainfall Correlation" 
+            icon={CloudRain} 
+            drawChart={drawRainfallChart}
+            insightFlow={getRainfallInsight}
+            insightData={{ rainfall: 12, need: 34 }}
+          />
         </div>
       </div>
 
       <style jsx global>{`
-        .ndvi-glow {
-          filter: blur(40px);
-        }
+        .ndvi-glow { filter: blur(40px); }
         @keyframes radar-sweep {
           0% { transform: scale(0); opacity: 0.8; }
           100% { transform: scale(2.5); opacity: 0; }
@@ -381,6 +508,37 @@ export function SatelliteScreen() {
           border-radius: 50%;
           background: rgba(239, 83, 80, 0.4);
           animation: radar-sweep 2s infinite;
+        }
+        .tin-box {
+          background: rgba(10, 20, 10, 0.75);
+          backdrop-filter: blur(18px);
+          border: 1px solid rgba(76, 175, 80, 0.25);
+          border-radius: 16px;
+          padding: 24px;
+          box-shadow: inset 0 0 40px rgba(76, 175, 80, 0.05), 0 8px 32px rgba(0,0,0,0.4);
+          display: flex;
+          flex-direction: column;
+          min-height: 320px;
+          transition: all 0.3s ease;
+        }
+        .tin-box:hover {
+          border-color: rgba(76, 175, 80, 0.5);
+          transform: translateY(-5px);
+        }
+        .ai-strip {
+          background: rgba(0, 0, 0, 0.4);
+          border-left: 3px solid #4CAF50;
+          padding: 12px;
+          border-radius: 4px;
+        }
+        .skeleton-line {
+          background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 100%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
       `}</style>
     </div>

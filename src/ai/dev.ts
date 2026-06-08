@@ -12,3 +12,7 @@ import '@/ai/flows/eligibility-explanation-flow.ts';
 import '@/ai/flows/farm-insight-flow.ts';
 import '@/ai/flows/ai-weekly-summary-flow.ts';
 import '@/ai/flows/field-assessment-flow.ts';
+import '@/ai/flows/ndvi-insight-flow.ts';
+import '@/ai/flows/disease-insight-flow.ts';
+import '@/ai/flows/yield-insight-flow.ts';
+import '@/ai/flows/rainfall-insight-flow.ts';
