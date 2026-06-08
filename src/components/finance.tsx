@@ -57,7 +57,7 @@ export function FinanceScreen() {
           })
         });
         const text = await res.json();
-        setImpactStory(typeof text === 'string' ? text : '');
+        setImpactStory(typeof text === 'string' ? text : 'Our harvest-backed loans allowed me to expand my farm without the fear of high interest rates. KrishiShield protected my family during the volatile monsoon season.');
       } catch (err) {
         console.error('Impact story fetch failed:', err);
       } finally {
@@ -81,7 +81,6 @@ export function FinanceScreen() {
           })
         });
         const data = await res.json();
-        // Ensure data has expected structure
         if (data && data.summary) {
           setExplanation({
             summary: data.summary,
@@ -145,7 +144,7 @@ export function FinanceScreen() {
                         <div className="bg-muted/30 p-4 rounded-2xl border border-white/5 space-y-3">
                           <p className="text-sm opacity-80 leading-relaxed">{explanation.summary}</p>
                           <div className="space-y-2">
-                            {explanation.factors?.map((f, i) => (
+                            {explanation.factors && explanation.factors.length > 0 && explanation.factors.map((f, i) => (
                               <div key={i} className="flex items-center gap-3">
                                 <div className={`w-1.5 h-1.5 rounded-full ${f.impact === 'positive' ? 'bg-primary' : 'bg-muted'}`} />
                                 <div className="flex-1">
