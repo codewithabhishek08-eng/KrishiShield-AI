@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate AI-powered market signal cards for agricultural produce.
@@ -32,7 +31,6 @@ const marketSignalPrompt = ai.definePrompt({
   name: 'marketSignalPrompt',
   input: {schema: MarketSignalInputSchema},
   output: {schema: MarketSignalOutputSchema},
-  model: 'groq/llama-3.3-70b-versatile',
   config: {
     temperature: 0.4,
   },
@@ -74,7 +72,6 @@ const marketSignalGeneratorFlow = ai.defineFlow(
     } catch (error) {
       console.error('Error generating market signals:', error);
       // Graceful fallback payload as per requirements.
-      // This fallback must strictly conform to MarketSignalOutputSchema.
       return [
         {
           icon_name: '⚠️',
