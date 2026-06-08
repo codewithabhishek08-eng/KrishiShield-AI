@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { CROPS, type Crop } from '@/lib/crop-data';
+import { CROPS } from '@/lib/crop-data';
 import { getProfile, type UserProfile } from '@/lib/user-profile';
 import { getTacticalInsight } from '@/ai/flows/tactical-insight-flow';
 
@@ -48,7 +48,6 @@ export function MarketScreen() {
   const handleSelectCrop = (name: string) => {
     setActiveCropName(name);
     setMobileView('detail');
-    // Scroll to detail panel smoothly on mobile
     if (window.innerWidth < 1024) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -138,7 +137,7 @@ export function MarketScreen() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-headline font-black text-white">{activeCropName}</h2>
-                    <p className="text-xs opacity-40">Tactical Brief for <span className="text-primary">{profile.city}</span> Mandi</p>
+                    <p className="text-xs opacity-40">Tactical Brief for <span className="text-primary" data-location="city">{profile.city}</span> Mandi</p>
                   </div>
                 </div>
                 <div className="hidden sm:flex items-center gap-3">
@@ -151,7 +150,6 @@ export function MarketScreen() {
               {/* Detail Cards Scrollable Area */}
               <ScrollArea className="flex-1">
                 <div className="p-8 space-y-8">
-                  {/* Summary Bar */}
                   <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
                       <Sparkles className="text-primary animate-pulse" size={24} />
@@ -162,7 +160,6 @@ export function MarketScreen() {
                     </Button>
                   </div>
 
-                  {/* 2-Column Intelligence Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <IntelligenceBlock 
                       title="Price Intelligence" 
@@ -234,7 +231,6 @@ export function MarketScreen() {
   );
 }
 
-// Reusable Intelligence Card Component
 function IntelligenceBlock({ title, icon: Icon, cropName, profile, prompt }: { title: string, icon: any, cropName: string, profile: UserProfile, prompt: string }) {
   const [insight, setInsight] = useState('');
   const [loading, setLoading] = useState(true);
@@ -310,7 +306,6 @@ function IntelligenceBlock({ title, icon: Icon, cropName, profile, prompt }: { t
   );
 }
 
-// Specialized Price Chart Block
 function PriceChartBlock({ cropName, profile }: { cropName: string, profile: UserProfile }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [data, setData] = useState<{ month: string, price: number }[]>([]);
@@ -328,12 +323,15 @@ function PriceChartBlock({ cropName, profile }: { cropName: string, profile: Use
           system: "You are a JSON data generator. Only return a valid JSON array of objects." 
         });
         
-        // Try to parse the insight as JSON
         const raw = res.insight.trim();
         const jsonMatch = raw.match(/\[.*\]/s);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          setData(parsed);
+          if (Array.isArray(parsed)) {
+            setData(parsed);
+          } else {
+            throw new Error("Parsed data is not an array");
+          }
         } else {
           throw new Error("No JSON found in response");
         }
@@ -353,7 +351,6 @@ function PriceChartBlock({ cropName, profile }: { cropName: string, profile: Use
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
     const width = canvas.width;
     const height = canvas.height;
 
@@ -365,10 +362,9 @@ function PriceChartBlock({ cropName, profile }: { cropName: string, profile: Use
     const range = max - min || 1;
     const padding = 20;
     
-    const getX = (i: number) => padding + (i * (width - padding * 2) / (data.length - 1));
+    const getX = (i: number) => padding + (i * (width - padding * 2) / (data.length - 1 || 1));
     const getY = (v: number) => (height - padding) - ((v - min) / range * (height - padding * 2));
 
-    // Animation progress
     let progress = 0;
     const animate = () => {
       progress += 0.02;
@@ -393,11 +389,15 @@ function PriceChartBlock({ cropName, profile }: { cropName: string, profile: Use
       ctx.shadowBlur = 12;
       ctx.shadowColor = 'rgba(76, 175, 80, 0.5)';
       
-      for(let i=0; i < data.length * progress; i++) {
+      const currentLimit = Math.min(data.length, Math.ceil(data.length * progress));
+      for(let i=0; i < currentLimit; i++) {
         const x = getX(i);
-        const y = getY(data[i].price);
-        if(i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const point = data[i];
+        if (point) {
+          const y = getY(point.price);
+          if(i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -446,7 +446,6 @@ function PriceChartBlock({ cropName, profile }: { cropName: string, profile: Use
   );
 }
 
-// Simple typewriter utility
 function Typewriter({ text, speed = 28 }: { text: string, speed?: number }) {
   const [displayed, setDisplayed] = useState('');
   
