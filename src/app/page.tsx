@@ -8,6 +8,7 @@ import { MarketScreen } from '@/components/market';
 import { SatelliteScreen } from '@/components/satellite';
 import { FinanceScreen } from '@/components/finance';
 import { ProfileScreen } from '@/components/profile';
+import { ProfileBanner } from '@/components/profile-banner';
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -15,12 +16,9 @@ export default function Home() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Allow scroll observer to register
       const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-          }
+          if (entry.isIntersecting) entry.target.classList.add('visible');
         });
       }, { threshold: 0.1 });
 
@@ -48,6 +46,7 @@ export default function Home() {
       {loading && <IntroPreloader onComplete={() => setLoading(false)} />}
       {!loading && (
         <AppShell activeTab={activeTab} setActiveTab={setActiveTab}>
+          <ProfileBanner />
           {renderContent()}
         </AppShell>
       )}

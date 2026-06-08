@@ -16,3 +16,4 @@ import '@/ai/flows/ndvi-insight-flow.ts';
 import '@/ai/flows/disease-insight-flow.ts';
 import '@/ai/flows/yield-insight-flow.ts';
 import '@/ai/flows/rainfall-insight-flow.ts';
+import '@/ai/flows/tactical-insight-flow.ts';
