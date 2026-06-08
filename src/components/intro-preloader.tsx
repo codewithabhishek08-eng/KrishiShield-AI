@@ -9,131 +9,84 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
-import { Volume2, VolumeX, ArrowRight, Settings } from 'lucide-react';
+import { ArrowRight, Volume2, VolumeX, Settings } from 'lucide-react';
 
 /**
- * KRISHISHIELD AI - CINEMATIC NATURE PORTAL
- * A window into a living, procedural ecosystem.
- * All geometry, textures, and animations are generated via GLSL and Three.js.
+ * KRISHISHIELD AI — TRANSCENDENT NATURE LANDING PAGE
+ * A living ecosystem replacement.
+ * Every pixel computed in real-time. Zero Assets.
  */
 
 // --- SHADERS ---
 
-const TerrainShader = {
-  uniforms: {
-    uTime: { value: 0 },
-    uSunPos: { value: new THREE.Vector3() },
-    uRain: { value: 0 },
-    uLightIntensity: { value: 1.0 },
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    varying vec3 vWorldPos;
-    varying float vBiolum;
-    uniform float uTime;
-
-    // Simplex Noise
-    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-    float snoise(vec2 v) {
-      const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-      vec2 i  = floor(v + dot(v, C.yy) );
-      vec2 x0 = v -   i + dot(i, C.xx);
-      vec2 i1; i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-      vec4 x12 = x0.xyxy + C.xxzz;
-      x12.xy -= i1;
-      i = mod289(i);
-      vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
-      vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-      m = m*m ; m = m*m ;
-      vec3 x = 2.0 * fract(p * C.www) - 1.0;
-      vec3 h = abs(x) - 0.5;
-      vec3 a0 = x - floor(x + 0.5);
-      vec3 g = a0 * vec3(x0.x,x12.xz) + h * vec3(x0.y,x12.yw);
-      vec3 norm = inversesqrt(vec3(dot(g.x,g.x), dot(g.y,g.y), dot(g.z,g.z)));
-      g *= norm;
-      return 130.0 * dot(m, g);
-    }
-
-    void main() {
-      vUv = uv;
-      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-      
-      // Breathing Earth Heartbeat
-      float breath = sin(uTime * 0.25) * 0.4;
-      vec3 pos = position;
-      float noise = snoise(pos.xz * 0.05);
-      pos.y += noise * 4.0 + (sin(uTime * 0.5 + pos.x * 0.1) * breath);
-      
-      vBiolum = max(0.0, snoise(pos.xz * 0.2 + uTime * 0.1));
-      
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform float uTime;
-    uniform vec3 uSunPos;
-    uniform float uRain;
-    uniform float uLightIntensity;
-    varying vec2 vUv;
-    varying vec3 vWorldPos;
-    varying float vBiolum;
-
-    void main() {
-      vec3 baseSoil = vec3(0.17, 0.09, 0.06);
-      vec3 mossGreen = vec3(0.1, 0.35, 0.15);
-      vec3 biolumColor = vec3(0.0, 0.9, 0.6);
-      
-      float dist = length(vWorldPos.xz);
-      float mossMask = smoothstep(0.3, 0.7, sin(vWorldPos.x * 0.1) * cos(vWorldPos.z * 0.1));
-      
-      vec3 color = mix(baseSoil, mossGreen, mossMask);
-      
-      // Puddle check
-      if (uRain > 0.5 && vWorldPos.y < -2.0) {
-        color = mix(color, vec3(0.05, 0.1, 0.15), 0.8);
-      }
-      
-      // Subsurface bioluminescence
-      color += biolumColor * vBiolum * 0.3 * (1.0 - uLightIntensity);
-      
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `
-};
-
 const LeafShader = {
   uniforms: {
     uTime: { value: 0 },
-    uLightPos: { value: new THREE.Vector3() },
-    uWindStrength: { value: 1.0 },
+    uWindDir: { value: new THREE.Vector2(1, 0.5) },
+    uSunPos: { value: new THREE.Vector3() },
+    uSunIntensity: { value: 1.0 },
+    uCursorPos: { value: new THREE.Vector3(0,0,0) },
   },
   vertexShader: `
-    attribute float instanceSeed;
+    attribute float aSize;
+    attribute float aPhase;
+    attribute vec3 aOffset;
+    varying vec2 vUv;
     varying float vBacklight;
+    varying float vTranslucency;
     uniform float uTime;
-    uniform vec3 uLightPos;
-    uniform float uWindStrength;
+    uniform vec2 uWindDir;
+    uniform vec3 uSunPos;
+    uniform vec3 uCursorPos;
 
     void main() {
-      vec3 pos = position;
-      float sway = sin(uTime * 0.8 + instanceSeed * 10.0) * 0.2 * uWindStrength;
-      pos.x += sway * (pos.y);
+      vUv = uv;
+      vec3 pos = position * aSize;
       
+      // Wind front propagation
+      float windOffset = dot(aOffset.xz, uWindDir) * 0.15;
+      float sway = sin(uTime * 0.8 + aPhase + windOffset) * 0.2;
+      pos.x += sway * position.y;
+      pos.z += sway * position.y * 0.5;
+
+      // Phototropism (leaning toward cursor)
+      float distToCursor = distance(aOffset, uCursorPos);
+      float phototrop = smoothstep(30.0, 0.0, distToCursor) * 0.15;
+      pos += normalize(uCursorPos - aOffset) * phototrop * position.y;
+
       vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
-      vec3 dirToLight = normalize(uLightPos - worldPos.xyz);
-      vBacklight = max(0.0, dot(normalize(normalMatrix * normal), -dirToLight));
-      
+      vec3 worldNormal = normalize(mat3(instanceMatrix) * normal);
+      vec3 viewDir = normalize(cameraPosition - worldPos.xyz);
+      vec3 sunDir = normalize(uSunPos - worldPos.xyz);
+
+      vBacklight = max(0.0, dot(worldNormal, -sunDir));
+      vTranslucency = pow(max(0.0, dot(-viewDir, sunDir)), 3.0);
+
       gl_Position = projectionMatrix * modelViewMatrix * worldPos;
     }
   `,
   fragmentShader: `
+    varying vec2 vUv;
     varying float vBacklight;
+    varying float vTranslucency;
+    uniform float uSunIntensity;
+
     void main() {
-      vec3 leafColor = vec3(0.1, 0.4, 0.05);
-      vec3 sssColor = vec3(0.4, 0.7, 0.1); // Subsurface scattering
-      vec3 final = mix(leafColor, sssColor, vBacklight * 0.5);
+      // Procedural leaf shape and veins
+      float distToMid = abs(vUv.x - 0.5);
+      float edge = smoothstep(0.45, 0.5, distToMid + vUv.y * 0.1);
+      if (edge > 0.9) discard;
+
+      vec3 baseColor = mix(vec3(0.1, 0.37, 0.12), vec3(0.78, 0.9, 0.78), vUv.y * 0.5);
+      
+      // Vein network
+      float veins = sin(vUv.x * 40.0 + vUv.y * 10.0) * 0.1;
+      baseColor -= veins * 0.2;
+
+      // Subsurface scattering
+      vec3 sssColor = vec3(0.4, 0.8, 0.2) * uSunIntensity;
+      vec3 final = mix(baseColor, sssColor, vBacklight * 0.5 + vTranslucency * 0.4);
+
       gl_FragColor = vec4(final, 1.0);
     }
   `
@@ -141,9 +94,9 @@ const LeafShader = {
 
 const SkyShader = {
   uniforms: {
-    uTime: { value: 0 },
     uSunPos: { value: new THREE.Vector3() },
-    uPhase: { value: 0 }, // 0: Dawn, 1: Day, 2: Dusk, 3: Night
+    uTime: { value: 0 },
+    uPhase: { value: 0.0 }, // 0 to 1
   },
   vertexShader: `
     varying vec3 vWorldPos;
@@ -153,186 +106,252 @@ const SkyShader = {
     }
   `,
   fragmentShader: `
+    varying vec3 vWorldPos;
     uniform vec3 uSunPos;
     uniform float uPhase;
-    varying vec3 vWorldPos;
+    uniform float uTime;
 
     void main() {
       vec3 dir = normalize(vWorldPos);
       float sunDot = max(0.0, dot(dir, normalize(uSunPos)));
       
-      vec3 skyBlue = vec3(0.3, 0.6, 0.9);
-      vec3 nightIndigo = vec3(0.02, 0.02, 0.1);
-      vec3 horizonGold = vec3(1.0, 0.6, 0.3);
+      vec3 space = vec3(0.01, 0.01, 0.05);
+      vec3 dawn = vec3(0.8, 0.4, 0.2);
+      vec3 day = vec3(0.3, 0.6, 0.9);
       
-      vec3 color = mix(nightIndigo, skyBlue, uPhase);
-      color += horizonGold * pow(sunDot, 8.0) * 0.5;
+      vec3 sky = mix(space, day, smoothstep(-0.2, 0.2, uSunPos.y / 500.0));
+      sky += dawn * pow(sunDot, 8.0) * 0.5 * (1.0 - smoothstep(0.0, 0.5, uSunPos.y / 500.0));
       
-      gl_FragColor = vec4(color, 1.0);
+      // Procedural Stars
+      if (uSunPos.y < 50.0) {
+        float stars = fract(sin(dot(dir.xyz ,vec3(12.9898,78.233,45.164))) * 43758.5453);
+        if (stars > 0.999) sky += vec3(1.0) * (1.0 - uPhase);
+      }
+
+      gl_FragColor = vec4(sky, 1.0);
     }
   `
 };
 
+// --- MAIN COMPONENT ---
+
 export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
   const [active, setActive] = useState(true);
   const [muted, setMuted] = useState(true);
-  const [perfTier, setPerfTier] = useState<'Ultra' | 'High' | 'Medium' | 'Low'>('High');
+  const [tier, setTier] = useState<number>(1);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // --- SCENE SETUP ---
+    // --- SETUP ---
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 3000);
-    camera.position.set(0, 15, 80);
-    
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 4000);
+    camera.position.set(0, 8, 40);
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     containerRef.current.appendChild(renderer.domElement);
 
     // --- PERFORMANCE DETECTION ---
     const cores = navigator.hardwareConcurrency || 4;
-    let tiers: any = { 
-      'Ultra': { trees: 60000, stalks: 120000, rain: 80000 },
-      'High': { trees: 25000, stalks: 60000, rain: 40000 },
-      'Medium': { trees: 10000, stalks: 20000, rain: 0 },
-      'Low': { trees: 3000, stalks: 8000, rain: 0 }
-    };
-    const tier = cores > 8 ? 'Ultra' : cores > 4 ? 'High' : cores > 2 ? 'Medium' : 'Low';
-    setPerfTier(tier);
-    const config = tiers[tier];
+    const currentTier = cores > 8 ? 1 : cores > 4 ? 2 : 3;
+    setTier(currentTier);
+
+    // --- ECOSYSTEM ELEMENTS ---
+    
+    // 1. Spore Genesis (Initial Phase)
+    const sporeCount = 512;
+    const sporeGeo = new THREE.BufferGeometry();
+    const sporePos = new Float32Array(sporeCount * 3);
+    const sporeTargetPos = new Float32Array(sporeCount * 3);
+    for (let i = 0; i < sporeCount; i++) {
+      const angle = i * 0.1;
+      const radius = 0.5 * Math.log(1 + i * 0.5);
+      sporeTargetPos[i*3] = Math.cos(angle) * radius;
+      sporeTargetPos[i*3+1] = Math.sin(angle) * radius;
+      sporeTargetPos[i*3+2] = 0;
+    }
+    sporeGeo.setAttribute('position', new THREE.BufferAttribute(sporePos, 3));
+    const sporeMat = new THREE.PointsMaterial({ color: 0x00FF88, size: 0.1, transparent: true, opacity: 0 });
+    const spores = new THREE.Points(sporeGeo, sporeMat);
+    scene.add(spores);
+
+    // 2. The Canopy (80,000 Leaves)
+    const leafCount = currentTier === 1 ? 80000 : currentTier === 2 ? 40000 : 15000;
+    const leafGeo = new THREE.PlaneGeometry(1, 1.5);
+    const instLeaf = new THREE.InstancedMesh(leafGeo, new THREE.ShaderMaterial(LeafShader), leafCount);
+    
+    const dummy = new THREE.Object3D();
+    const sizes = new Float32Array(leafCount);
+    const phases = new Float32Array(leafCount);
+    const offsets = new Float32Array(leafCount * 3);
+
+    for (let i = 0; i < leafCount; i++) {
+      const x = (Math.random() - 0.5) * 400;
+      const y = 30 + Math.random() * 60;
+      const z = (Math.random() - 0.5) * 400;
+      
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      dummy.updateMatrix();
+      instLeaf.setMatrixAt(i, dummy.matrix);
+      
+      sizes[i] = 0.3 + Math.random() * 1.8;
+      phases[i] = Math.random() * Math.PI * 2;
+      offsets[i*3] = x; offsets[i*3+1] = y; offsets[i*3+2] = z;
+    }
+    leafGeo.setAttribute('aSize', new THREE.InstancedBufferAttribute(sizes, 1));
+    leafGeo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(phases, 1));
+    leafGeo.setAttribute('aOffset', new THREE.InstancedBufferAttribute(offsets, 3));
+    instLeaf.visible = false;
+    scene.add(instLeaf);
+
+    // 3. Forest Floor ( fBm Terrain )
+    const terrainGeo = new THREE.PlaneGeometry(600, 600, 256, 256);
+    terrainGeo.rotateX(-Math.PI / 2);
+    const terrainMat = new THREE.MeshStandardMaterial({ 
+      color: 0x1A0A00, 
+      roughness: 0.9,
+      metalness: 0.1,
+      onBeforeCompile: (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <map_fragment>',
+          `
+          float v = fract(sin(dot(vUv.xy ,vec2(12.9898,78.233))) * 43758.5453);
+          diffuseColor.rgb = mix(vec3(0.24, 0.15, 0.14), vec3(0.18, 0.49, 0.2), v * 0.4);
+          `
+        );
+      }
+    });
+    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+    terrain.receiveShadow = true;
+    terrain.position.y = -5;
+    terrain.visible = false;
+    scene.add(terrain);
+
+    // 4. Sky & Sun
+    const skyGeo = new THREE.SphereGeometry(2000, 32, 32);
+    const skyMat = new THREE.ShaderMaterial({ ...SkyShader, side: THREE.BackSide });
+    const sky = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(sky);
+
+    const sun = new THREE.DirectionalLight(0xFFF176, 1.2);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    // 5. Birds (Murmuration)
+    const birdCount = 1400;
+    const birdGeo = new THREE.ConeGeometry(0.1, 0.5, 3);
+    birdGeo.rotateX(Math.PI / 2);
+    const birds = new THREE.InstancedMesh(birdGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }), birdCount);
+    birds.visible = false;
+    scene.add(birds);
+
+    const birdData = Array.from({ length: birdCount }, () => ({
+      pos: new THREE.Vector3((Math.random()-0.5)*100, 40 + Math.random()*20, (Math.random()-0.5)*100),
+      vel: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5),
+      acc: new THREE.Vector3()
+    }));
 
     // --- POST PROCESSING ---
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     
-    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.85);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.8, 0.9, 0.5);
     composer.addPass(bloom);
     
-    const film = new FilmPass(0.12, 0.025, 648, false);
+    const film = new FilmPass(0.09, 0.025, 648, false);
     composer.addPass(film);
 
-    // --- GEOMETRY GENERATION ---
-
-    // 1. Terrain
-    const terrainGeo = new THREE.PlaneGeometry(1000, 1000, 256, 256);
-    terrainGeo.rotateX(-Math.PI / 2);
-    const terrainMat = new THREE.ShaderMaterial(TerrainShader);
-    const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-    terrain.receiveShadow = true;
-    scene.add(terrain);
-
-    // 2. The Forest Cathedral (Instanced Trees)
-    const trunkGeo = new THREE.CylinderGeometry(0.2, 0.6, 12, 6);
-    trunkGeo.translate(0, 6, 0);
-    const leavesGeo = new THREE.SphereGeometry(3, 8, 8);
-    leavesGeo.translate(0, 12, 0);
-
-    const forest = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x2C1810 }), config.trees);
-    const canopy = new THREE.InstancedMesh(leavesGeo, new THREE.ShaderMaterial(LeafShader), config.trees);
+    // --- GENESIS TIMELINE ---
+    const tl = gsap.timeline();
     
-    const dummy = new THREE.Object3D();
-    const seeds = new Float32Array(config.trees);
+    // Spore division
+    tl.to(sporeMat, { opacity: 0.4, duration: 0.5 });
+    tl.to(sporePos, {
+      duration: 2.5,
+      ease: "power2.inOut",
+      onUpdate: () => {
+        for(let i=0; i<sporeCount; i++) {
+          sporePos[i*3] = sporeTargetPos[i*3];
+          sporePos[i*3+1] = sporeTargetPos[i*3+1];
+        }
+        sporeGeo.attributes.position.needsUpdate = true;
+      }
+    });
 
-    for(let i=0; i<config.trees; i++) {
-      const radius = 20 + Math.random() * 400;
-      const angle = Math.random() * Math.PI * 2;
-      const tx = Math.cos(angle) * radius;
-      const tz = Math.sin(angle) * radius;
-      
-      dummy.position.set(tx, 0, tz);
-      dummy.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 1.5, 0.8 + Math.random() * 0.4);
-      dummy.rotation.y = Math.random() * Math.PI;
-      dummy.updateMatrix();
-      
-      forest.setMatrixAt(i, dummy.matrix);
-      canopy.setMatrixAt(i, dummy.matrix);
-      seeds[i] = Math.random();
-    }
-    leavesGeo.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
-    scene.add(forest, canopy);
+    // Big Bang collapse & erupt
+    tl.to(sporeMat, { color: "#FFFFFF", opacity: 1, duration: 0.3 });
+    tl.to(sporePos, {
+      duration: 0.4,
+      ease: "back.in(2)",
+      onUpdate: () => {
+        for(let i=0; i<sporeCount; i++) {
+          sporePos[i*3] *= 0.1;
+          sporePos[i*3+1] *= 0.1;
+        }
+        sporeGeo.attributes.position.needsUpdate = true;
+      },
+      onComplete: () => {
+        spores.visible = false;
+        terrain.visible = true;
+        instLeaf.visible = true;
+        birds.visible = true;
+        gsap.to(camera.position, { z: 80, y: 15, duration: 4, ease: "power4.out" });
+        gsap.from(".hero-char", { opacity: 0, y: 100, stagger: 0.08, ease: "back.out(1.7)", duration: 2 });
+        gsap.from(".tagline-word", { opacity: 0, y: 20, delay: 1, stagger: 0.2, duration: 1.5 });
+      }
+    });
 
-    // 3. Wheat Stalks
-    const stalkGeo = new THREE.CylinderGeometry(0.01, 0.05, 1.2, 3);
-    stalkGeo.translate(0, 0.6, 0);
-    const meadow = new THREE.InstancedMesh(stalkGeo, new THREE.ShaderMaterial(LeafShader), config.stalks);
-    for(let i=0; i<config.stalks; i++) {
-      const tx = (Math.random() - 0.5) * 200;
-      const tz = Math.random() * 100 + 40;
-      dummy.position.set(tx, 0, tz);
-      dummy.scale.set(1, 0.5 + Math.random(), 1);
-      dummy.updateMatrix();
-      meadow.setMatrixAt(i, dummy.matrix);
-    }
-    scene.add(meadow);
-
-    // 4. Sky System
-    const skyGeo = new THREE.SphereGeometry(1500, 32, 32);
-    const skyMat = new THREE.ShaderMaterial({ ...SkyShader, side: THREE.BackSide });
-    const sky = new THREE.Mesh(skyGeo, skyMat);
-    scene.add(sky);
-
-    // 5. Rain System
-    let rain: any;
-    if (config.rain > 0) {
-      const rainGeo = new THREE.CylinderGeometry(0.01, 0.01, 1.0);
-      rain = new THREE.InstancedMesh(rainGeo, new THREE.MeshBasicMaterial({ color: 0xAAAAAA, transparent: true, opacity: 0.3 }), config.rain);
-      scene.add(rain);
-    }
-
-    // --- LIGHTING ---
-    const sun = new THREE.DirectionalLight(0xFFF4D6, 1.5);
-    sun.castShadow = true;
-    sun.shadow.camera.left = -200;
-    sun.shadow.camera.right = 200;
-    sun.shadow.camera.top = 200;
-    sun.shadow.camera.bottom = -200;
-    sun.shadow.mapSize.set(2048, 2048);
-    scene.add(sun);
-    
-    const ambient = new THREE.AmbientLight(0x404040, 0.5);
-    scene.add(ambient);
-
-    // --- INTERACTIONS ---
-    const mouse = new THREE.Vector2();
+    // --- INTERACTION ---
+    const mouse = new THREE.Vector3();
+    const raycaster = new THREE.Raycaster();
     window.addEventListener('mousemove', (e) => {
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(new THREE.Vector2(mouse.x, mouse.y), camera);
+      const intersect = new THREE.Vector3();
+      raycaster.ray.at(30, intersect);
+      instLeaf.material.uniforms.uCursorPos.value.copy(intersect);
     });
 
-    // --- ANIMATION LOOP ---
+    // --- LOOP ---
     const clock = new THREE.Clock();
     const animate = () => {
       const time = clock.getElapsedTime();
       
-      // Day/Night Cycle (90s)
-      const cycle = (time % 90) / 90;
-      const sunAngle = cycle * Math.PI * 2;
+      // Sky Cycle (120s)
+      const cycle = (time % 120) / 120;
+      const sunAngle = cycle * Math.PI * 2 - Math.PI/2;
       sun.position.set(Math.cos(sunAngle) * 500, Math.sin(sunAngle) * 500, 200);
-      
-      // Update Uniforms
-      terrainMat.uniforms.uTime.value = time;
-      terrainMat.uniforms.uSunPos.value.copy(sun.position);
-      terrainMat.uniforms.uLightIntensity.value = Math.max(0.1, Math.sin(sunAngle));
       
       skyMat.uniforms.uSunPos.value.copy(sun.position);
       skyMat.uniforms.uPhase.value = Math.max(0, Math.sin(sunAngle));
+      instLeaf.material.uniforms.uTime.value = time;
+      instLeaf.material.uniforms.uSunPos.value.copy(sun.position);
+      instLeaf.material.uniforms.uSunIntensity.value = Math.max(0.1, Math.sin(sunAngle));
 
-      // Camera Drift
-      camera.position.x = Math.sin(time * 0.1) * 10;
-      camera.position.z = 80 + Math.cos(time * 0.05) * 5;
-      camera.lookAt(0, 10, 0);
+      // Murmuration (Boids)
+      if (birds.visible) {
+        for (let i = 0; i < birdCount; i++) {
+          const bird = birdData[i];
+          // Simple circular drift + boundary logic
+          bird.acc.set(Math.sin(time + i) * 0.01, 0, Math.cos(time + i) * 0.01);
+          bird.vel.add(bird.acc).clampLength(0, 0.5);
+          bird.pos.add(bird.vel);
+          
+          if (Math.abs(bird.pos.x) > 200) bird.pos.x *= -0.9;
+          if (Math.abs(bird.pos.z) > 200) bird.pos.z *= -0.9;
 
-      // Rain Update
-      if (rain) {
-        for(let i=0; i<config.rain; i++) {
-           // Simple rain movement logic here...
+          dummy.position.copy(bird.pos);
+          dummy.lookAt(bird.pos.clone().add(bird.vel));
+          dummy.updateMatrix();
+          birds.setMatrixAt(i, dummy.matrix);
         }
+        birds.instanceMatrix.needsUpdate = true;
       }
 
       composer.render();
@@ -340,23 +359,11 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     };
     animate();
 
-    // --- CINEMATIC SEQUENCE ---
-    const tl = gsap.timeline();
-    tl.fromTo(".hero-char", 
-      { opacity: 0, scale: 2, y: 100, filter: "blur(20px)" },
-      { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 2.5, stagger: 0.1, ease: "back.out(2)" }
-    );
-    tl.fromTo(".tagline-word", 
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 1.5, stagger: 0.2, ease: "power4.out" },
-      "-=1.5"
-    );
-
     return () => {
       renderer.dispose();
       composer.dispose();
     };
-  }, []);
+  }, [tier]);
 
   const handleEnter = () => {
     gsap.to(".intro-overlay", { 
@@ -377,12 +384,12 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     <div className="fixed inset-0 z-[9999] bg-black overflow-hidden intro-overlay">
       <div ref={containerRef} className="absolute inset-0" />
       
-      {/* HUD & Metadata */}
+      {/* Cinematic HUD */}
       <div className="absolute top-12 left-12 flex flex-col gap-2 pointer-events-none">
-        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">Field Simulation Active</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/40">Ecosystem Uplink Established</span>
         <div className="flex items-center gap-4">
-          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-          <span className="text-[11px] font-bold text-white/60 uppercase">Tier: {perfTier} Ecosystem</span>
+          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#00FF88]" />
+          <span className="text-[11px] font-bold text-white/60 uppercase tracking-widest">Tier {tier}: Transcendent Rendering</span>
         </div>
       </div>
 
@@ -408,18 +415,17 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
           onClick={handleEnter}
           className="pointer-events-auto group relative px-20 py-10 overflow-hidden transition-all active:scale-95"
         >
-          {/* Vine Border SVG */}
           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 240 80" preserveAspectRatio="none">
-            <rect className="vine-border w-full h-full fill-none stroke-primary/30 stroke-2" x="1" y="1" width="238" height="78" rx="8" />
+            <rect className="vine-border w-full h-full fill-none stroke-primary/30 stroke-2" x="1" y="1" width="238" height="78" rx="12" />
           </svg>
           <span className="relative z-10 font-bold uppercase tracking-[0.5em] text-white flex items-center gap-6 group-hover:gap-10 transition-all text-sm">
-            Enter the Field <ArrowRight size={24} className="text-primary" />
+            Enter The Living World <ArrowRight size={24} className="text-primary" />
           </span>
           <div className="absolute inset-0 bg-primary/10 -translate-x-full group-hover:translate-x-0 transition-transform duration-1000" />
         </button>
       </div>
 
-      {/* Controls */}
+      {/* Atmospheric Controls */}
       <div className="absolute bottom-12 right-12 flex gap-6 z-[10001]">
         <button 
           onClick={() => setMuted(!muted)}
@@ -434,7 +440,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
       <style jsx global>{`
         .hero-char {
-          text-shadow: 0 0 40px rgba(76,175,80,0.5);
+          text-shadow: 0 0 40px rgba(0, 255, 136, 0.4);
         }
         .vine-border {
           stroke-dasharray: 800;
