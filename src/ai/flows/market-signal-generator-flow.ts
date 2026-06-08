@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview A Genkit flow to generate high-fidelity market signals for the trading terminal.
+ * @fileOverview Generates high-fidelity market signals for any crop.
  */
 
 import { ai } from '@/ai/genkit';
@@ -8,10 +8,10 @@ import { z } from 'genkit';
 import { groq } from '@/lib/groq-client';
 
 const MarketSignalInputSchema = z.object({
-  crop: z.string().default('tomato'),
-  region: z.string().default('Nasik, Maharashtra'),
+  cropName: z.string(),
+  region: z.string().default('India'),
+  trend: z.string().optional(),
 });
-export type MarketSignalInput = z.infer<typeof MarketSignalInputSchema>;
 
 const MarketSignalSchema = z.object({
   emoji: z.string(),
@@ -22,7 +22,6 @@ const MarketSignalSchema = z.object({
 });
 
 const MarketSignalOutputSchema = z.array(MarketSignalSchema);
-export type MarketSignalOutput = z.infer<typeof MarketSignalOutputSchema>;
 
 const marketSignalGeneratorFlow = ai.defineFlow(
   {
@@ -31,13 +30,14 @@ const marketSignalGeneratorFlow = ai.defineFlow(
     outputSchema: MarketSignalOutputSchema,
   },
   async (input) => {
-    const system = `You are a professional agricultural commodity analyst specializing in Maharashtra, India. Respond ONLY in valid JSON.`;
-    const user = `Generate 5 market signals for ${input.crop} prices in ${input.region} for the next 6 months. Consider monsoon, cold storage, fuel costs, competing crops, and eNAM auction data.
-    Return JSON object with key 'signals' containing an array. Schema per item: {emoji, title (max 5 words), detail (max 20 words), sentiment: 'bullish'|'bearish'|'neutral', pct_impact: number (-20 to +20)}.`;
+    const system = `You are a professional agricultural commodity analyst for India. Respond ONLY in valid JSON.`;
+    const user = `Generate 3 specific market signals for ${input.cropName} in ${input.region}. Current trend is ${input.trend || 'stable'}. 
+    Consider eNAM data, weather forecasts, and harvest cycles.
+    Return JSON object with key 'signals' containing an array. Schema: {emoji, title (max 5 words), detail (max 20 words), sentiment: 'bullish'|'bearish'|'neutral', pct_impact: number (-20 to +20)}.`;
 
     const output = await groq(system, user, {
       json: true,
-      cacheKey: `market-signals-terminal-${input.crop}`,
+      cacheKey: `signals-${input.cropName}`,
       temperature: 0.4
     });
 
@@ -45,6 +45,6 @@ const marketSignalGeneratorFlow = ai.defineFlow(
   }
 );
 
-export async function generateMarketSignals(input: MarketSignalInput = {}): Promise<MarketSignalOutput> {
+export async function generateMarketSignals(input: { cropName: string, trend?: string }) {
   return marketSignalGeneratorFlow(input);
 }
