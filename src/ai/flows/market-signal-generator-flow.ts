@@ -1,10 +1,6 @@
 'use server';
 /**
- * @fileOverview A Genkit flow to generate AI-powered market signal cards using Groq.
- *
- * - generateMarketSignals - A function that handles the generation of market signals.
- * - MarketSignalInput - The input type for the generateMarketSignals function.
- * - MarketSignalOutput - The return type for the generateMarketSignals function.
+ * @fileOverview A Genkit flow to generate high-fidelity market signals for the trading terminal.
  */
 
 import { ai } from '@/ai/genkit';
@@ -13,16 +9,16 @@ import { groq } from '@/lib/groq-client';
 
 const MarketSignalInputSchema = z.object({
   crop: z.string().default('tomato'),
-  region: z.string().default('Maharashtra, India'),
-  duration: z.string().default('next 6 months'),
+  region: z.string().default('Nasik, Maharashtra'),
 });
 export type MarketSignalInput = z.infer<typeof MarketSignalInputSchema>;
 
 const MarketSignalSchema = z.object({
-  icon_name: z.string(),
+  emoji: z.string(),
   title: z.string(),
   detail: z.string(),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
+  pct_impact: z.number(),
 });
 
 const MarketSignalOutputSchema = z.array(MarketSignalSchema);
@@ -35,12 +31,13 @@ const marketSignalGeneratorFlow = ai.defineFlow(
     outputSchema: MarketSignalOutputSchema,
   },
   async (input) => {
-    const system = `You are an agricultural market analyst. Generate 4 market signals for ${input.crop} prices in ${input.region} for the ${input.duration}.`;
-    const user = `Return a JSON object with a single key 'signals' containing an array of 4 objects. Each object needs: icon_name (a relevant emoji), title (4 words max), detail (one sentence, max 20 words), sentiment (bullish|bearish|neutral).`;
+    const system = `You are a professional agricultural commodity analyst specializing in Maharashtra, India. Respond ONLY in valid JSON.`;
+    const user = `Generate 5 market signals for ${input.crop} prices in ${input.region} for the next 6 months. Consider monsoon, cold storage, fuel costs, competing crops, and eNAM auction data.
+    Return JSON object with key 'signals' containing an array. Schema per item: {emoji, title (max 5 words), detail (max 20 words), sentiment: 'bullish'|'bearish'|'neutral', pct_impact: number (-20 to +20)}.`;
 
     const output = await groq(system, user, {
       json: true,
-      cacheKey: `market-signals-${input.crop}-v3`,
+      cacheKey: `market-signals-terminal-${input.crop}`,
       temperature: 0.4
     });
 
