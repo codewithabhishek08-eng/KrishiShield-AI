@@ -7,7 +7,6 @@ import { gsap } from 'gsap';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
 import { ArrowRight, Volume2, VolumeX, Settings } from 'lucide-react';
 
@@ -217,6 +216,17 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       roughness: 0.9,
       metalness: 0.1,
       onBeforeCompile: (shader) => {
+        // Inject varying declaration to both shaders
+        shader.vertexShader = 'varying vec2 vUv;\n' + shader.vertexShader;
+        shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
+
+        // Assign UV in vertex shader
+        shader.vertexShader = shader.vertexShader.replace(
+          '#include <uv_vertex>',
+          '#include <uv_vertex>\nvUv = uv;'
+        );
+
+        // Inject noise into fragment shader
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <map_fragment>',
           `
