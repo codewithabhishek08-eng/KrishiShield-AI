@@ -8,7 +8,8 @@ import { z } from 'genkit';
 import { groq } from '@/lib/groq-client';
 
 const RainfallInsightInputSchema = z.object({
-  rainfall: z.number(),
+  deficit: z.number(),
+  crop: z.string(),
   need: z.number(),
 });
 
@@ -23,15 +24,15 @@ const rainfallInsightFlow = ai.defineFlow(
     outputSchema: RainfallInsightOutputSchema,
   },
   async (input) => {
-    const system = `You are a hydrology expert. State deficit or surplus and irrigation recommendation. One sentence, max 25 words.`;
-    const user = `Rainfall ${input.rainfall}mm vs crop water need ${input.need}mm this week.`;
+    const system = `You are a hydrology expert. Respond in 2 sentences max.`;
+    const user = `Rainfall deficit is ${input.deficit}mm this week for ${input.crop} needing ${input.need}mm. Give a precise irrigation recommendation — method, timing, and quantity — in 2 sentences.`;
 
     const output = await groq(system, user, {
       temperature: 0.2,
-      cacheKey: `rainfall-insight-${input.rainfall}-${input.need}`,
+      cacheKey: `rainfall-insight-${input.deficit}-${input.need}`,
     });
 
-    return { insight: typeof output === 'string' ? output : "Water deficit of 22mm detected. Action: Increase drip cycle by 15 minutes during sunset hours." };
+    return { insight: typeof output === 'string' ? output : "Water deficit of ${input.deficit}mm detected. Recommendation: Increase drip cycle by 15 minutes during pre-dawn hours to maximize absorption." };
   }
 );
 

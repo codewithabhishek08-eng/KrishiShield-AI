@@ -8,9 +8,11 @@ import { z } from 'genkit';
 import { groq } from '@/lib/groq-client';
 
 const DiseaseInsightInputSchema = z.object({
-  value: z.number(),
-  humidity: z.number(),
-  temp: z.number(),
+  prob: z.number(),
+  crop: z.string(),
+  h: z.number(),
+  t: z.number(),
+  mm: z.number(),
 });
 
 const DiseaseInsightOutputSchema = z.object({
@@ -24,15 +26,15 @@ const diseaseInsightFlow = ai.defineFlow(
     outputSchema: DiseaseInsightOutputSchema,
   },
   async (input) => {
-    const system = `You are a plant pathologist. Name the likely pathogen and earliest intervention window. One sentence, max 25 words.`;
-    const user = `Disease probability rising to ${input.value}% given humidity ${input.humidity}% and temp ${input.temp}°C.`;
+    const system = `You are a plant pathologist. Respond in 2 sentences max.`;
+    const user = `Disease probability is ${input.prob}% for ${input.crop}. Humidity ${input.h}%, Temp ${input.t}°C, recent rainfall ${input.mm}mm. Name the most likely pathogen, explain why conditions favour it, and give the earliest intervention step.`;
 
     const output = await groq(system, user, {
       temperature: 0.2,
-      cacheKey: `disease-insight-${input.value}-${input.humidity}`,
+      cacheKey: `disease-insight-${input.prob}-${input.h}`,
     });
 
-    return { insight: typeof output === 'string' ? output : "Potential Early Blight detected. Action: Apply copper fungicide within the 48-hour clear window." };
+    return { insight: typeof output === 'string' ? output : "Conditions favor Early Blight due to high humidity. Action: Apply preventive copper-based fungicide within the next 24 hours." };
   }
 );
 

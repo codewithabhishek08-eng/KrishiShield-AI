@@ -8,8 +8,10 @@ import { z } from 'genkit';
 import { groq } from '@/lib/groq-client';
 
 const YieldInsightInputSchema = z.object({
-  projected: z.number(),
-  average: z.number(),
+  yield: z.number(),
+  avg: z.number(),
+  crop: z.string(),
+  location: z.string(),
 });
 
 const YieldInsightOutputSchema = z.object({
@@ -23,15 +25,15 @@ const yieldInsightFlow = ai.defineFlow(
     outputSchema: YieldInsightOutputSchema,
   },
   async (input) => {
-    const system = `You are a farm economic analyst. Explain yield gap in one sentence and suggest one corrective measure. Max 25 words.`;
-    const user = `Projected yield ${input.projected} kg/acre vs regional average ${input.average} kg/acre.`;
+    const system = `You are a farm economic analyst. Respond in 2 sentences max.`;
+    const user = `Projected yield is ${input.yield}kg/acre vs regional average ${input.avg}kg/acre for ${input.crop} in ${input.location}. Explain the yield gap cause in one sentence and give one corrective measure with expected recovery percentage.`;
 
     const output = await groq(system, user, {
       temperature: 0.2,
-      cacheKey: `yield-insight-${input.projected}-${input.average}`,
+      cacheKey: `yield-insight-${input.yield}-${input.avg}`,
     });
 
-    return { insight: typeof output === 'string' ? output : "Yield lag due to soil transpiration stress. Action: Implement mulching to conserve root-zone moisture." };
+    return { insight: typeof output === 'string' ? output : "Yield gap is driven by localized transpiration stress. Action: Implement mulching to conserve root-zone moisture; expect 15% recovery in 3 weeks." };
   }
 );
 

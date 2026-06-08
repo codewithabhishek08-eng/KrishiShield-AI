@@ -8,10 +8,11 @@ import { z } from 'genkit';
 import { groq } from '@/lib/groq-client';
 
 const NdviInsightInputSchema = z.object({
+  ndvi: z.number(),
   crop: z.string(),
   location: z.string(),
-  current: z.number(),
-  previous: z.number(),
+  week: z.string(),
+  trend_direction: z.string(),
 });
 
 const NdviInsightOutputSchema = z.object({
@@ -25,15 +26,15 @@ const ndviInsightFlow = ai.defineFlow(
     outputSchema: NdviInsightOutputSchema,
   },
   async (input) => {
-    const system = `You are a precision agronomist. Provide a one-sentence trend diagnosis and one actionable fix. Max 25 words.`;
-    const user = `NDVI dropped from ${input.previous} to ${input.current} over 30 days for ${input.crop} in ${input.location}.`;
+    const system = `You are a precision agronomist. Respond in 2 sentences max. Use llama3-70b style.`;
+    const user = `NDVI score is ${input.ndvi} for ${input.crop} in ${input.location}, week ${input.week}. Current trend: ${input.trend_direction}. Diagnose in 2 sentences and give one specific action the farmer must take today.`;
 
     const output = await groq(system, user, {
       temperature: 0.2,
-      cacheKey: `ndvi-insight-${input.location}-${input.current}`,
+      cacheKey: `ndvi-insight-${input.location}-${input.ndvi}`,
     });
 
-    return { insight: typeof output === 'string' ? output : "Biomass vigor is declining. Action: Audit nitrogen application levels immediately." };
+    return { insight: typeof output === 'string' ? output : "NDVI levels are below baseline, indicating biomass stress. Action: Audit nitrogen levels and verify irrigation line pressure immediately." };
   }
 );
 

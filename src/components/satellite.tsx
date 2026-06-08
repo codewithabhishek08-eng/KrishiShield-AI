@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { 
   Satellite, Search, ArrowLeft, Wind, Thermometer, 
   Droplets, Microscope, Sparkles, Map as MapIcon,
   Info, AlertTriangle, RefreshCw, Activity,
-  TrendingUp, BarChart3, CloudRain, Target
+  TrendingUp, BarChart3, CloudRain, Target, Bug, Sprout, Leaf
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,398 +15,270 @@ import { getNdviInsight } from '@/ai/flows/ndvi-insight-flow';
 import { getDiseaseInsight } from '@/ai/flows/disease-insight-flow';
 import { getYieldInsight } from '@/ai/flows/yield-insight-flow';
 import { getRainfallInsight } from '@/ai/flows/rainfall-insight-flow';
+import { 
+  AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
+  CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, 
+  ComposedChart, Legend, Cell 
+} from 'recharts';
 
 import 'leaflet/dist/leaflet.css';
 
-const NDVI_COLORS = {
-  healthy: '#4CAF50',
-  stressed: '#F57F17',
-  drought: '#B71C1C'
+/**
+ * Tactical Field Intelligence Data Structure
+ */
+interface FieldData {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  crop: string;
+  metrics: {
+    healthScore: number;
+    ndvi: number;
+    diseaseRisk: number;
+    daysToHarvest: number;
+    lastPass: string;
+    humidity: number;
+    temp: number;
+    rainfall: number;
+    waterNeed: number;
+  };
+  ndviHistory: { week: string; baseline: number; field: number }[];
+  diseaseHistory: { day: string; probability: number }[];
+  yieldForecast: { month: string; optimal: number; forecast: number; untreated: number }[];
+  rainfallHistory: { day: string; actual: number; requirement: number }[];
+}
+
+const DEFAULT_FIELD_DATA: FieldData = {
+  id: 'nasik-44b',
+  name: "Ramesh's Field 44B",
+  lat: 19.9975,
+  lng: 73.7898,
+  crop: "Tomato (Hybrid)",
+  metrics: {
+    healthScore: 74,
+    ndvi: 0.58,
+    diseaseRisk: 42,
+    daysToHarvest: 107,
+    lastPass: "2h ago",
+    humidity: 78,
+    temp: 28,
+    rainfall: 12,
+    waterNeed: 34
+  },
+  ndviHistory: Array.from({ length: 12 }, (_, i) => ({
+    week: `W${i + 1}`,
+    baseline: 0.75 + Math.random() * 0.1,
+    field: i > 8 ? 0.45 + Math.random() * 0.1 : 0.65 + Math.random() * 0.15
+  })),
+  diseaseHistory: Array.from({ length: 30 }, (_, i) => ({
+    day: `${i + 1}`,
+    probability: Math.min(100, Math.pow(i, 1.2) * 1.5)
+  })),
+  yieldForecast: [
+    { month: 'Jul', optimal: 4200, forecast: 3800, untreated: 3600 },
+    { month: 'Aug', optimal: 4500, forecast: 3900, untreated: 3400 },
+    { month: 'Sep', optimal: 5000, forecast: 4100, untreated: 3200 }
+  ],
+  rainfallHistory: Array.from({ length: 7 }, (_, i) => ({
+    day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+    actual: [12, 45, 32, 10, 8, 22, 60][i],
+    requirement: 40
+  }))
 };
 
-const GRID_SIZE = 48;
-
 /**
- * Animated Counter Component for smooth number rolls
+ * Animated Counter Component
  */
-function AnimatedCounter({ value, suffix = "" }: { value: number, suffix?: string }) {
-  const [displayValue, setDisplayValue] = useState(0);
+function Counter({ value, suffix = "", delay = 0 }: { value: number, suffix?: string, delay?: number }) {
+  const [count, setCount] = useState(0);
   useEffect(() => {
-    let start: number | null = null;
-    const duration = 600;
-    const end = value;
-    const step = (timestamp: number) => {
-      if (!start) start = timestamp;
-      const progress = Math.min((timestamp - start) / duration, 1);
-      setDisplayValue(Math.floor(progress * end));
-      if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [value]);
-  return <span>{displayValue}{suffix}</span>;
+    const timer = setTimeout(() => {
+      let start = 0;
+      const duration = 600;
+      const step = (timestamp: number) => {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / duration, 1);
+        setCount(Math.floor(progress * value));
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return <span>{count}{suffix}</span>;
 }
 
 /**
- * A "Tin Box" Frosted Glass Intelligence Card with a Canvas chart and Groq insight.
+ * Typewriter Text Component
  */
-function IntelligenceCard({ 
+function Typewriter({ text, speed = 28 }: { text: string, speed?: number }) {
+  const [displayed, setDisplayed] = useState('');
+  useEffect(() => {
+    let i = 0;
+    setDisplayed('');
+    const timer = setInterval(() => {
+      setDisplayed(text.slice(0, i));
+      i++;
+      if (i > text.length) clearInterval(timer);
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed]);
+  return <>{displayed}<span className="inline-block w-1 h-3.5 bg-primary ml-1 animate-pulse" /></>;
+}
+
+/**
+ * AI Advice Block Component
+ */
+function AdviceBlock({ 
   title, 
   icon: Icon, 
-  drawChart, 
-  insightFlow, 
-  insightData,
-  index 
+  flow, 
+  data, 
+  refreshKey 
 }: { 
-  title: string; 
-  icon: any; 
-  drawChart: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
-  insightFlow: (data: any) => Promise<{ insight: string }>;
-  insightData: any;
-  index: number;
+  title: string, 
+  icon: any, 
+  flow: (data: any) => Promise<{ insight: string }>, 
+  data: any,
+  refreshKey: number
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [insight, setInsight] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [typewritten, setTypewritten] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const fetchInsight = useCallback(async () => {
+  const fetch = useCallback(async () => {
     setLoading(true);
-    setTypewritten('');
+    setError(false);
     try {
-      // Add variance to input to keep AI responses fresh on manual refresh
-      const res = await insightFlow({ ...insightData, _v: Date.now() });
+      const res = await flow(data);
       setInsight(res.insight);
-      
-      let i = 0;
-      const text = res.insight;
-      const interval = setInterval(() => {
-        setTypewritten(text.slice(0, i));
-        i++;
-        if (i > text.length) clearInterval(interval);
-      }, 15);
     } catch (e) {
-      setInsight("Unable to uplink to AI advisor. Retrying...");
+      setError(true);
+      setTimeout(fetch, 4000);
     } finally {
       setLoading(false);
     }
-  }, [insightFlow, insightData]);
+  }, [flow, data]);
 
   useEffect(() => {
-    fetchInsight();
-  }, [fetchInsight]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    let progress = 0;
-    const animate = () => {
-      progress += 0.025;
-      if (progress > 1) progress = 1;
-      
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw Grid Lines (20% opacity)
-      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-      ctx.lineWidth = 1;
-      for(let i=1; i<4; i++) {
-        const y = (canvas.height / 4) * i;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-      }
-      
-      ctx.save();
-      ctx.globalAlpha = progress;
-      drawChart(ctx, canvas.width, canvas.height);
-      ctx.restore();
-      
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    animate();
-  }, [drawChart]);
+    fetch();
+  }, [fetch, refreshKey]);
 
   return (
-    <div 
-      className="tin-box animate-in opacity-0"
-      style={{ 
-        animation: `slideUpFade 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards`,
-        animationDelay: `${index * 150}ms`
-      }}
-    >
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-xl">
-            <Icon size={18} className="text-primary" />
-          </div>
-          <h4 className="text-[12px] font-black uppercase tracking-[0.1em] text-white/80">{title}</h4>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/10">
-          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-          <span className="text-[9px] font-black uppercase text-primary/60">Live Feed</span>
-        </div>
+    <div className="border-l-3 border-primary bg-black/35 rounded-xl p-4 relative group transition-all hover:bg-black/50">
+      <div className="flex items-center gap-3 mb-2">
+        <Icon size={16} className="text-primary" />
+        <span className="text-sm font-bold text-white uppercase tracking-tight">{title}</span>
       </div>
-
-      <div className="flex-1 relative mb-6">
-        <canvas ref={canvasRef} width={500} height={160} className="w-full h-[160px]" />
-      </div>
-
-      <div className="relative mt-auto">
-        <div className="ai-strip group">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
-              <Sparkles size={10} /> AI Analysis
-            </span>
-            <button 
-              onClick={fetchInsight} 
-              className="p-1.5 text-white/20 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-            >
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            </button>
+      <div className="min-h-[60px]">
+        {loading ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="h-3 bg-primary/10 rounded w-full" />
+            <div className="h-3 bg-primary/10 rounded w-4/5" />
           </div>
-          <div className="min-h-[44px]">
-            {loading ? (
-              <div className="space-y-2">
-                <div className="skeleton-line w-full h-3" />
-                <div className="skeleton-line w-4/5 h-3" />
-              </div>
-            ) : (
-              <p className="text-[13px] font-body text-white/70 leading-relaxed italic">
-                {typewritten}
-                <span className="inline-block w-1.5 h-3.5 bg-primary ml-1 animate-pulse" />
-              </p>
-            )}
+        ) : error ? (
+          <div className="flex items-center gap-2 text-amber-400 text-xs">
+            <RefreshCw size={12} className="animate-spin" /> Retrying analysis...
           </div>
-        </div>
+        ) : (
+          <p className="text-[13px] font-body text-white/70 leading-relaxed italic">
+            <Typewriter text={insight} />
+          </p>
+        )}
       </div>
+      <button 
+        onClick={fetch}
+        className="absolute bottom-2 right-2 p-1.5 text-white/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+      >
+        <RefreshCw size={12} />
+      </button>
     </div>
   );
 }
 
 export function SatelliteScreen() {
+  const [selectedField, setSelectedField] = useState<FieldData | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [selectedField, setSelectedField] = useState<any>(null);
-  const [assessmentText, setAssessmentText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
   const mapRef = useRef<any>(null);
-  const heatmapCanvasRef = useRef<HTMLCanvasElement>(null);
-  const typeTimeoutRef = useRef<any>(null);
-  const zoomTimeoutRef = useRef<any>(null);
-  const fieldSelectTimeoutRef = useRef<any>(null);
+
+  // Auto-refresh AI every 5 mins
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshKey(k => k + 1);
+      setLastUpdated(new Date());
+    }, 300000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const L = require('leaflet');
-    
     if (mapRef.current) return;
 
     const map = L.map('satellite-map', {
       zoomControl: false,
       attributionControl: false,
-      maxBounds: [[-90, -180], [90, 180]]
     }).setView([20, 0], 2);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; CartoDB'
-    }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    const outbreaks = [
-      { lat: 20.0, lng: 73.8, label: "Nasik - Blight" },
-      { lat: 18.5, lng: 73.8, label: "Pune - Pest Surge" },
-      { lat: 15.3, lng: 75.7, label: "Hubli - Water Stress" }
-    ];
-
-    outbreaks.forEach(o => {
-      const icon = L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white radar-pulse relative"></div>`,
-        iconSize: [16, 16]
-      });
-      L.marker([o.lat, o.lng], { icon }).addTo(map).on('click', () => {
-        handleFieldSelect({ name: o.label, lat: o.lat, lng: o.lng });
-      });
+    const outbreakIcon = L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white radar-pulse relative"></div>`,
+      iconSize: [16, 16]
     });
+
+    L.marker([19.9975, 73.7898], { icon: outbreakIcon })
+      .addTo(map)
+      .on('click', () => setSelectedField(DEFAULT_FIELD_DATA));
 
     mapRef.current = map;
     setMapLoaded(true);
 
-    // Initial Cinematic Sequence
-    zoomTimeoutRef.current = setTimeout(() => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-        mapRef.current.flyTo([19.9975, 73.7898], 14, { duration: 3.5, easeLinearity: 0.25 });
-        
-        fieldSelectTimeoutRef.current = setTimeout(() => {
-          handleFieldSelect({ name: "Ramesh's Field 44B", lat: 19.9975, lng: 73.7898 });
-        }, 3800);
-      }
-    }, 1500);
+    setTimeout(() => {
+      map.invalidateSize();
+      map.flyTo([19.9975, 73.7898], 14, { duration: 3.5 });
+    }, 1000);
 
     return () => {
-      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
-      if (fieldSelectTimeoutRef.current) clearTimeout(fieldSelectTimeoutRef.current);
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
+      map.remove();
+      mapRef.current = null;
     };
   }, []);
 
-  const handleFieldSelect = async (field: any) => {
-    setSelectedField(field);
-    setAssessmentText('');
-    setTimeout(() => drawHeatmap(), 100);
-
-    try {
-      const res = await getFieldAssessment({
-        score: 74,
-        crop: "Tomato (Hybrid)",
-        humidity: 65,
-        location: field.name
-      });
-      typeAssessment(res.assessment);
-    } catch (e) {
-      typeAssessment("Uplink established. Field metrics indicate stable vigor with moderate transpiration load. Action: Monitor irrigation pressure.");
-    }
+  const handleRefreshAll = () => {
+    setRefreshKey(k => k + 1);
+    setLastUpdated(new Date());
   };
 
-  const typeAssessment = (text: string) => {
-    setIsTyping(true);
-    let i = 0;
-    const speed = 25;
-    if (typeTimeoutRef.current) clearInterval(typeTimeoutRef.current);
-    
-    typeTimeoutRef.current = setInterval(() => {
-      setAssessmentText(text.slice(0, i));
-      i++;
-      if (i > text.length) {
-        clearInterval(typeTimeoutRef.current);
-        setIsTyping(false);
-      }
-    }, speed);
-  };
+  const chartStyles = "bg-black/80 backdrop-blur-3xl border border-primary/20 rounded-[14px] p-5 relative group overflow-hidden h-[320px]";
 
-  const drawHeatmap = () => {
-    const canvas = heatmapCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cellSize = canvas.width / GRID_SIZE;
-
-    let y = 0;
-    const paintRow = () => {
-      if (!heatmapCanvasRef.current) return;
-      if (y >= GRID_SIZE) {
-        drawDashedOverlay();
-        return;
-      }
-      for (let x = 0; x < GRID_SIZE; x++) {
-        const val = 0.4 + Math.random() * 0.5;
-        ctx.fillStyle = val > 0.8 ? '#1B5E20' : val > 0.6 ? '#4CAF50' : val > 0.4 ? '#F57F17' : '#B71C1C';
-        ctx.fillRect(Math.ceil(x * cellSize), Math.ceil(y * cellSize), Math.ceil(cellSize), Math.ceil(cellSize));
-      }
-      y++;
-      setTimeout(paintRow, 2);
-    };
-
-    const drawDashedOverlay = () => {
-      let offset = 0;
-      const animate = () => {
-        if (!heatmapCanvasRef.current) return;
-        const ctx = heatmapCanvasRef.current.getContext('2d');
-        if (!ctx) return;
-        ctx.save();
-        ctx.strokeStyle = 'rgba(239, 83, 80, 0.8)';
-        ctx.setLineDash([6, 4]);
-        ctx.lineDashOffset = -offset;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(canvas.width * 0.6, 20, canvas.width * 0.3, canvas.height * 0.3);
-        ctx.restore();
-        offset += 0.3;
-        requestAnimationFrame(animate);
-      };
-      animate();
-    };
-    paintRow();
-  };
-
-  // Chart Rendering Logics
-  const drawNdviChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    ctx.strokeStyle = '#4CAF50';
-    ctx.lineWidth = 3;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = '#4CAF50';
-    ctx.beginPath();
-    ctx.moveTo(0, h*0.4);
-    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.4 + Math.sin(i/3)*15 + Math.random()*8);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    // Labels
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = '9px font-code';
-    ctx.fillText('1.0', 5, 15);
-    ctx.fillText('0.5', 5, h/2);
-    ctx.fillText('0.0', 5, h-5);
-  };
-
-  const drawDiseaseChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    ctx.strokeStyle = '#EF5350';
-    ctx.lineWidth = 3;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = '#EF5350';
-    ctx.beginPath();
-    ctx.moveTo(0, h*0.85);
-    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.85 - Math.pow(i, 1.3)/3);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('100%', 5, 15);
-    ctx.fillText('0%', 5, h-5);
-  };
-
-  const drawYieldChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    // Confidence Band
-    ctx.fillStyle = 'rgba(76, 175, 80, 0.1)';
-    ctx.beginPath();
-    ctx.moveTo(0, h*0.5);
-    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.5 - 15 - i*0.4);
-    for(let i=29; i>=0; i--) ctx.lineTo(w/29*i, h*0.5 + 15 + i*0.4);
-    ctx.fill();
-    // Projection Line
-    ctx.strokeStyle = '#81C784';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(0, h*0.5);
-    for(let i=0; i<30; i++) ctx.lineTo(w/29*i, h*0.5 - i*0.8);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('5T', 5, 15);
-    ctx.fillText('Avg', 5, h*0.5 + 4);
-  };
-
-  const drawRainfallChart = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-    const bars = [12, 45, 32, 10, 8, 22, 60];
-    const bw = w / 15;
-    ctx.fillStyle = '#1976D2';
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = '#1976D2';
-    bars.forEach((v, i) => {
-      ctx.fillRect(bw*2*i + bw, h - v, bw, v);
-    });
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillText('80mm', 5, 15);
-  };
+  if (!selectedField) {
+    return (
+      <div className="relative h-[calc(100vh-56px)] w-full flex flex-col bg-[#0A0F0A]">
+        <div id="satellite-map" className="flex-1 w-full" />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[2000]">
+          <div className="bg-black/60 backdrop-blur-xl border border-primary/30 p-10 rounded-3xl flex flex-col items-center gap-6 animate-in zoom-in-95">
+            <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center animate-pulse">
+              <div className="w-6 h-6 bg-primary rounded-full" />
+            </div>
+            <p className="text-lg font-bold text-white/80">Select a field on the map to load intelligence</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden flex flex-col bg-[#0A0F0A]">
-      {/* Search Header */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-4">
-        <div className="relative group">
+    <div className="relative min-h-screen bg-[#070D07] text-white">
+      {/* Map Header Overlay */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-lg px-4 pointer-events-none">
+        <div className="relative group pointer-events-auto">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" size={18} />
           <Input 
             value={searchQuery}
@@ -417,132 +289,217 @@ export function SatelliteScreen() {
         </div>
       </div>
 
-      {/* Main Map Container */}
-      <div id="satellite-map" className="flex-1 w-full" />
+      <div id="satellite-map" className="h-[40vh] w-full border-b border-primary/10" />
 
-      {/* Side Glass Panel */}
-      <div 
-        className={cn(
-          "fixed top-[56px] right-0 h-[calc(100vh-56px)] w-full md:w-[420px] glass-panel z-[1100] transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] flex flex-col shadow-[-40px_0_100px_rgba(0,0,0,0.8)]",
-          selectedField ? "translate-x-0" : "translate-x-full"
-        )}
-      >
-        <button 
-          onClick={() => setSelectedField(null)}
-          className="absolute top-4 left-4 p-2.5 bg-white/5 rounded-full hover:bg-white/10 transition-colors z-10"
-        >
-          <ArrowLeft size={20} />
-        </button>
-
-        <div className="flex-1 overflow-y-auto no-scrollbar p-8 space-y-10 pt-20">
-          <section>
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-3xl font-headline font-black text-white">{selectedField?.name || "Target Field"}</h3>
-                <p className="text-[12px] opacity-40 font-code tracking-[0.2em] mt-1 uppercase">LAT: {selectedField?.lat?.toFixed(4) || "19.99"} · LNG: {selectedField?.lng?.toFixed(4) || "73.78"}</p>
-              </div>
-              <Badge className="bg-red-500/10 text-red-500 border-red-500/30 font-black tracking-widest text-[10px]">CRITICAL</Badge>
-            </div>
-
-            <div className="relative aspect-square w-full rounded-[2rem] overflow-hidden border border-white/10 bg-black/60 shadow-2xl">
-              <canvas ref={heatmapCanvasRef} width={400} height={400} className="w-full h-full" />
-              <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2 bg-black/40 p-3 rounded-2xl backdrop-blur-md">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-40">Uplink Active</span>
-                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#EF5350]" />
-              </div>
-            </div>
-          </section>
-
-          <div className="grid grid-cols-2 gap-5">
-            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex flex-col items-center justify-center space-y-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Field Score</span>
-              <div className="relative w-20 h-20 flex items-center justify-center">
-                <svg className="absolute inset-0 w-full h-full -rotate-90">
-                  <circle cx="50%" cy="50%" r="42%" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
-                  <circle cx="50%" cy="50%" r="42%" fill="none" stroke="#4CAF50" strokeWidth="6" strokeDasharray="131" strokeDashoffset="34" strokeLinecap="round" />
-                </svg>
-                <span className="text-3xl font-headline font-black"><AnimatedCounter value={74} /></span>
-              </div>
-            </div>
-            <div className="bg-white/5 border border-white/10 p-6 rounded-3xl flex flex-col justify-center gap-4">
-              <div className="flex items-center gap-4 group">
-                <Wind size={16} className="text-blue-400 group-hover:rotate-45 transition-transform" />
-                <span className="text-sm font-bold tracking-tight">12 km/h NW</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Thermometer size={16} className="text-red-400" />
-                <span className="text-sm font-bold tracking-tight">28.4 °C</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Droplets size={16} className="text-teal-400" />
-                <span className="text-sm font-bold tracking-tight">65% RH</span>
-              </div>
-            </div>
-          </div>
-
-          <section className="bg-primary/10 border border-primary/20 p-8 rounded-[2rem] relative overflow-hidden group">
-            <Sparkles className="absolute -right-4 -top-4 w-32 h-32 opacity-5 rotate-12 group-hover:scale-110 transition-transform" />
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-2.5 bg-primary/20 rounded-xl text-primary"><Microscope size={20} /></div>
-              <h4 className="font-black uppercase text-primary tracking-[0.1em] text-sm">Tactical Brief</h4>
-            </div>
-            <div className="min-h-[100px]">
-              <p className="text-[15px] font-body leading-relaxed text-white/80 italic">
-                {assessmentText}
-                {isTyping && <span className="inline-block w-1.5 h-4 bg-primary ml-1 animate-pulse" />}
+      <div id="satellite-data-panel" className="max-w-[1400px] mx-auto p-6 space-y-6">
+        
+        {/* Summary Bar */}
+        <div className="bg-black/40 backdrop-blur-xl border border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row gap-8 overflow-x-auto no-scrollbar">
+          {[
+            { label: 'Crop Health Score', val: selectedField.metrics.healthScore, unit: '/100', color: 'text-primary' },
+            { label: 'NDVI Value', val: selectedField.metrics.ndvi, unit: ' index', color: 'text-amber-400' },
+            { label: 'Disease Risk', val: selectedField.metrics.diseaseRisk, unit: '%', color: 'text-red-500' },
+            { label: 'Days to Harvest', val: selectedField.metrics.daysToHarvest, unit: ' days', color: 'text-primary' },
+            { label: 'Last Satellite Pass', val: 2, unit: 'h ago', color: 'text-white/60', isRaw: true }
+          ].map((s, i) => (
+            <div key={i} className="flex flex-col gap-1 min-w-[140px]">
+              <span className="text-[10px] uppercase font-black tracking-widest opacity-40">{s.label}</span>
+              <p className={cn("text-2xl font-headline font-black", s.color)}>
+                {s.isRaw ? s.val : <Counter value={s.val} delay={i * 100} />}{s.unit}
               </p>
             </div>
-            <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center text-[10px] font-black uppercase tracking-widest opacity-30">
-              <span>Sentinel-2C Uplink</span>
-              <span className="text-primary/60">T-02:44:11</span>
-            </div>
-          </section>
+          ))}
         </div>
-      </div>
 
-      {/* Analysis Terminal - 2x2 Tin Box Grid */}
-      <div className="relative z-[900] bg-[#0A1A0A]/98 border-t border-white/10 p-10 overflow-y-auto no-scrollbar max-h-[480px]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-[1600px] mx-auto">
-          <IntelligenceCard 
-            index={0}
-            title="NDVI Analysis" 
-            icon={TrendingUp} 
-            drawChart={drawNdviChart}
-            insightFlow={getNdviInsight}
-            insightData={{ crop: "Tomato", location: selectedField?.name || "Nasik", current: 0.58, previous: 0.71 }}
-          />
-          <IntelligenceCard 
-            index={1}
-            title="Pathogen Risk" 
-            icon={Activity} 
-            drawChart={drawDiseaseChart}
-            insightFlow={getDiseaseInsight}
-            insightData={{ value: 42, humidity: 78, temp: 28 }}
-          />
-          <IntelligenceCard 
-            index={2}
-            title="Yield Forecast" 
-            icon={Target} 
-            drawChart={drawYieldChart}
-            insightFlow={getYieldInsight}
-            insightData={{ projected: 3.2, average: 4.1 }}
-          />
-          <IntelligenceCard 
-            index={3}
-            title="Hydrology" 
-            icon={CloudRain} 
-            drawChart={drawRainfallChart}
-            insightFlow={getRainfallInsight}
-            insightData={{ rainfall: 12, need: 34 }}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+          
+          {/* Charts Column (60%) */}
+          <div className="lg:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Card 1: NDVI Trend */}
+            <div className={chartStyles}>
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-xs font-black uppercase text-white/80">NDVI Trend</span>
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#4CAF50]" />
+              </div>
+              <ResponsiveContainer width="100%" height="70%">
+                <AreaChart data={selectedField.ndviHistory}>
+                  <defs>
+                    <linearGradient id="colorField" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F4A435" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#F4A435" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <YAxis domain={[0, 1]} ticks={[0, 0.2, 0.4, 0.6, 0.8, 1.0]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
+                  <Area type="monotone" dataKey="field" stroke="#F4A435" strokeWidth={2} fill="url(#colorField)" animationDuration={800} />
+                  <Line type="monotone" dataKey="baseline" stroke="#4CAF50" strokeDasharray="5 5" dot={false} strokeWidth={1} />
+                  {selectedField.metrics.ndvi < 0.5 && (
+                    <ReferenceLine y={0.5} stroke="rgba(183,28,28,0.3)" label={{ position: 'top', value: 'Stress Zone', fill: '#EF5350', fontSize: 10 }} />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Card 2: Disease Probability */}
+            <div className={chartStyles}>
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-xs font-black uppercase text-white/80">Pathogen Risk</span>
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_#EF5350]" />
+              </div>
+              <ResponsiveContainer width="100%" height="70%">
+                <LineChart data={selectedField.diseaseHistory}>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit="%" />
+                  <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
+                  <ReferenceLine y={60} stroke="#FFF" strokeDasharray="3 3" label={{ position: 'right', value: 'Action Required', fill: '#FFF', fontSize: 9 }} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="probability" 
+                    stroke="#EF5350" 
+                    strokeWidth={3} 
+                    dot={(props: any) => {
+                      const { cx, cy, value } = props;
+                      if (value > 60) return <circle cx={cx} cy={cy} r={4} fill="#EF5350" className="animate-pulse" />;
+                      return <circle cx={cx} cy={cy} r={2} fill="#EF5350" />;
+                    }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Card 3: Yield Forecast */}
+            <div className={chartStyles}>
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-xs font-black uppercase text-white/80">Yield Projections</span>
+                <Target size={14} className="text-primary opacity-40" />
+              </div>
+              <ResponsiveContainer width="100%" height="65%">
+                <LineChart data={selectedField.yieldForecast}>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit=" kg" />
+                  <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
+                  <Line type="monotone" dataKey="optimal" stroke="#4CAF50" strokeWidth={2} animationBegin={0} />
+                  <Line type="monotone" dataKey="forecast" stroke="#1976D2" strokeWidth={2} animationBegin={200} />
+                  <Line type="monotone" dataKey="untreated" stroke="#B71C1C" strokeWidth={2} animationBegin={400} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center gap-4 mt-4">
+                {['Optimal', 'Forecast', 'Untreated'].map((l, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: i === 0 ? '#4CAF50' : i === 1 ? '#1976D2' : '#B71C1C' }} />
+                    <span className="text-[9px] font-black uppercase opacity-40">{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Card 4: Rainfall vs Need */}
+            <div className={chartStyles}>
+              <div className="flex justify-between items-start mb-4">
+                <span className="text-xs font-black uppercase text-white/80">Hydrology Balance</span>
+                <CloudRain size={14} className="text-blue-400 opacity-40" />
+              </div>
+              <ResponsiveContainer width="100%" height="70%">
+                <ComposedChart data={selectedField.rainfallHistory}>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.4)', fontSize: 10}} unit="mm" />
+                  <Tooltip contentStyle={{ background: '#0C1C0C', border: 'none', borderRadius: '10px' }} />
+                  <Bar dataKey="actual" fill="#1976D2" radius={[4, 4, 0, 0]} animationDuration={600}>
+                    {selectedField.rainfallHistory.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.actual < entry.requirement ? 'rgba(183,28,28,0.4)' : '#1976D2'} />
+                    ))}
+                  </Bar>
+                  <Line type="monotone" dataKey="requirement" stroke="#F4A435" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+          </div>
+
+          {/* AI Advice Column (40%) */}
+          <div className="lg:col-span-4 space-y-4 sticky top-[76px] h-fit">
+            <div className="flex justify-between items-center px-2">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-headline font-black text-white">Field Intelligence</h3>
+                <span className="text-[11px] opacity-40 uppercase tracking-widest">{selectedField.name}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] font-black uppercase opacity-20 block">Last Updated</span>
+                <span className="text-[11px] font-code opacity-40 tabular-nums">{lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} IST</span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <AdviceBlock 
+                title="Biomass Diagnosis" 
+                icon={Leaf} 
+                flow={getNdviInsight} 
+                data={{ 
+                  ndvi: selectedField.metrics.ndvi, 
+                  crop: selectedField.crop, 
+                  location: selectedField.name, 
+                  week: "W12", 
+                  trend_direction: "declining" 
+                }} 
+                refreshKey={refreshKey}
+              />
+              <AdviceBlock 
+                title="Pathogen Analysis" 
+                icon={Bug} 
+                flow={getDiseaseInsight} 
+                data={{ 
+                  prob: selectedField.metrics.diseaseRisk, 
+                  crop: selectedField.crop, 
+                  h: selectedField.metrics.humidity, 
+                  t: selectedField.metrics.temp, 
+                  mm: selectedField.metrics.rainfall 
+                }} 
+                refreshKey={refreshKey}
+              />
+              <AdviceBlock 
+                title="Economic Projection" 
+                icon={Target} 
+                flow={getYieldInsight} 
+                data={{ 
+                  yield: 4100, 
+                  avg: 5000, 
+                  crop: selectedField.crop, 
+                  location: selectedField.name 
+                }} 
+                refreshKey={refreshKey}
+              />
+              <AdviceBlock 
+                title="Irrigation Strategy" 
+                icon={CloudRain} 
+                flow={getRainfallInsight} 
+                data={{ 
+                  deficit: selectedField.metrics.waterNeed - selectedField.metrics.rainfall, 
+                  crop: selectedField.crop, 
+                  need: selectedField.metrics.waterNeed 
+                }} 
+                refreshKey={refreshKey}
+              />
+            </div>
+
+            <button 
+              onClick={handleRefreshAll}
+              className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center gap-3 group hover:bg-white/10 transition-all"
+            >
+              <RefreshCw size={14} className="opacity-40 group-hover:rotate-180 transition-transform duration-500" />
+              <span className="text-xs font-black uppercase tracking-widest opacity-40 group-hover:opacity-100">Force Insight Refresh</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
       <style jsx global>{`
-        @keyframes slideUpFade {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
         .radar-pulse::after {
           content: '';
           position: absolute;
@@ -555,42 +512,9 @@ export function SatelliteScreen() {
           0% { transform: scale(0); opacity: 0.8; }
           100% { transform: scale(2.5); opacity: 0; }
         }
-        .tin-box {
-          background: rgba(10, 20, 10, 0.75);
-          backdrop-filter: blur(18px);
-          border: 1px solid rgba(76, 175, 80, 0.25);
-          border-radius: 16px;
-          padding: 28px;
-          box-shadow: inset 0 0 40px rgba(76, 175, 80, 0.05), 0 8px 32px rgba(0,0,0,0.4);
-          display: flex;
-          flex-direction: column;
-          min-height: 380px;
-          transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-        .tin-box:hover {
-          border-color: rgba(76, 175, 80, 0.6);
-          transform: translateY(-8px);
-          box-shadow: inset 0 0 60px rgba(76, 175, 80, 0.1), 0 12px 48px rgba(0,0,0,0.6);
-        }
-        .ai-strip {
-          background: rgba(0, 0, 0, 0.5);
-          border-left: 3px solid #4CAF50;
-          padding: 16px;
-          border-radius: 8px;
-          transition: background 0.3s ease;
-        }
-        .ai-strip:hover {
-          background: rgba(0, 0, 0, 0.7);
-        }
-        .skeleton-line {
-          background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 100%);
-          background-size: 200% 100%;
-          animation: shimmer 1.5s infinite;
-          border-radius: 4px;
-        }
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
+        #satellite-map { 
+          z-index: 10; 
+          background: #000;
         }
       `}</style>
     </div>
