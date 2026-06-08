@@ -11,6 +11,8 @@ export interface GroqOptions {
   cacheKey?: string;
   cacheTTL?: number;
   fallback?: any;
+  stream?: boolean;
+  history?: { role: 'user' | 'assistant' | 'system'; content: string }[];
 }
 
 /**
@@ -25,11 +27,13 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
     json = false,
     cacheKey,
     cacheTTL = 3600,
-    fallback
+    fallback,
+    stream = false,
+    history = []
   } = opts;
 
-  // 1. Check Cache
-  if (cacheKey) {
+  // 1. Check Cache (Only for non-streaming)
+  if (!stream && cacheKey) {
     const cached = cache.get(cacheKey);
     if (cached) {
       console.log(`[GROQ] ${new Date().toISOString()} | Cache Hit | ${cacheKey}`);
@@ -37,18 +41,35 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
     }
   }
 
-  // 2. Handle Concurrent Identical Requests
-  if (cacheKey && pendingRequests.has(cacheKey)) {
+  // 2. Handle Concurrent Identical Requests (Only for non-streaming)
+  if (!stream && cacheKey && pendingRequests.has(cacheKey)) {
     return pendingRequests.get(cacheKey);
+  }
+
+  const messages = [
+    { role: 'system', content: json ? `${system} You MUST respond in valid JSON format.` : system },
+    ...history,
+    { role: 'user', content: user }
+  ];
+
+  if (stream) {
+    return fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        stream: true,
+      }),
+    });
   }
 
   const fetchPromise = (async () => {
     try {
-      // JSON mode requires the word 'JSON' in the prompt and an object structure.
-      const systemPrompt = json 
-        ? `${system} You MUST respond in valid JSON format. If the result is a list, wrap it in a root object.` 
-        : system;
-
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -57,10 +78,7 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
         },
         body: JSON.stringify({
           model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: user }
-          ],
+          messages,
           temperature,
           response_format: json ? { type: 'json_object' } : undefined,
         }),
@@ -91,7 +109,6 @@ export async function groq(system: string, user: string, opts: GroqOptions = {})
         }
       }
 
-      // 3. Store in Cache
       if (cacheKey && cacheTTL > 0) {
         cache.set(cacheKey, result, cacheTTL);
       }
