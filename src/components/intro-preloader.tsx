@@ -3,405 +3,415 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { FilmPass } from 'three/examples/jsm/postprocessing/FilmPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { Volume2, VolumeX, ArrowRight } from 'lucide-react';
 
-gsap.registerPlugin(ScrollTrigger);
-
 /**
- * KrishiShield AI - Pure Procedural Cinema
- * Built with Three.js + GSAP + Custom GLSL Shaders
- * Features: 100k instanced wheat stalks, Boids murmuration, Rayleigh scattering, 
- * Volumetric rays, magnetic cursor, and hardware-aware scaling.
+ * KrishiShield AI - Cinematic Nature Landing
+ * Procedural world generation via Three.js + GLSL
  */
+
+// --- SHADERS ---
+
+const TerrainShader = {
+  uniforms: {
+    uTime: { value: 0 },
+    uBiolum: { value: 0.2 },
+  },
+  vertexShader: `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying vec3 vWorldPos;
+    
+    // Simple noise for displacement
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+    float noise(vec2 p) {
+      vec2 i = floor(p); vec2 f = fract(p);
+      f = f*f*(3.0-2.0*f);
+      return mix(mix(hash(i + vec2(0,0)), hash(i + vec2(1,0)), f.x),
+                 mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+    }
+
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      
+      // Breathing earth logic
+      float disp = noise(pos.xz * 0.05 + uTime * 0.1) * 2.0;
+      disp += sin(uTime * 0.7) * 0.4; // Heartbeat
+      pos.y += disp;
+      
+      vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    uniform float uBiolum;
+    varying vec2 vUv;
+    varying vec3 vWorldPos;
+
+    void main() {
+      vec3 soilColor = vec3(0.05, 0.04, 0.03);
+      vec3 crackColor = vec3(0.0, 0.8, 0.7); // Mycorrhizal teal
+      
+      float crack = step(0.92, fract(vWorldPos.x * 2.0 + sin(vWorldPos.z * 1.5 + uTime)));
+      vec3 finalColor = mix(soilColor, crackColor, crack * uBiolum * (0.5 + 0.5 * sin(uTime * 2.0)));
+      
+      gl_FragColor = vec4(finalColor, 1.0);
+    }
+  `
+};
+
+const FoliageShader = {
+  uniforms: {
+    uTime: { value: 0 },
+    uMouse: { value: new THREE.Vector3(0,0,0) },
+    uWind: { value: 1.0 },
+    uSeason: { value: 0.0 } // 0 Green -> 1 Gold
+  },
+  vertexShader: `
+    attribute vec3 instancePos;
+    attribute float instanceSeed;
+    uniform float uTime;
+    uniform vec3 uMouse;
+    uniform float uWind;
+    varying float vY;
+    varying float vType;
+
+    void main() {
+      vY = position.y;
+      vec3 pos = position;
+      
+      // Wind wave
+      float wind = sin(uTime * 1.2 + instancePos.x * 0.2 + instancePos.z * 0.1 + instanceSeed) * 0.15 * uWind;
+      pos.x += wind * vY;
+      
+      // Mouse repulsion
+      float dist = distance(instancePos.xz, uMouse.xz);
+      if(dist < 15.0) {
+        float force = (1.0 - dist / 15.0) * 1.5;
+        vec2 dir = normalize(instancePos.xz - uMouse.xz);
+        pos.xz += dir * force * vY;
+      }
+
+      vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    uniform float uSeason;
+    varying float vY;
+    void main() {
+      vec3 green = mix(vec3(0.02, 0.1, 0.02), vec3(0.1, 0.3, 0.1), vY);
+      vec3 gold = mix(vec3(0.3, 0.2, 0.05), vec3(0.95, 0.8, 0.3), vY);
+      gl_FragColor = vec4(mix(green, gold, uSeason), 1.0);
+    }
+  `
+};
+
+const SkyShader = {
+  uniforms: {
+    uTime: { value: 0 },
+    uPhase: { value: 0 }, // 0: Dawn, 1: Sunrise, 2: Golden, 3: Storm, 4: Night
+    uStorm: { value: 0.0 }
+  },
+  vertexShader: `
+    varying vec3 vWorldPos;
+    void main() {
+      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    uniform float uStorm;
+    varying vec3 vWorldPos;
+
+    void main() {
+      vec3 sky = vec3(0.01, 0.01, 0.02); // Base Night
+      float d = dot(normalize(vWorldPos), vec3(0, 1, 0));
+      
+      // Storm lightning logic
+      float lightning = step(0.998, sin(uTime * 20.0)) * uStorm;
+      sky += vec3(0.5, 0.6, 0.8) * lightning;
+      
+      gl_FragColor = vec4(sky, 1.0);
+    }
+  `
+};
 
 export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasOverlayRef = useRef<HTMLCanvasElement>(null);
+  const uiRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(true);
   const [muted, setMuted] = useState(true);
-  
-  // Hydration fix: dimensions should be set after mount
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    setDimensions({
-      width: window.innerWidth,
-      height: window.innerHeight
-    });
-  }, []);
-
-  // Custom Cursor State
-  const cursorRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
-  const cursorTrailRef = useRef<{ x: number, y: number }[]>([]);
-
-  useEffect(() => {
-    if (!containerRef.current || !canvasOverlayRef.current) return;
+    if (!containerRef.current) return;
 
     // --- SETUP ---
-    const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const lowEnd = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) < 4;
-    
     const width = window.innerWidth;
     const height = window.innerHeight;
-    
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: !isMobile, 
-      alpha: true,
-      powerPreference: 'high-performance'
-    });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setClearColor(0x000000, 0);
     containerRef.current.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-    camera.position.set(0, 5, 25);
+    camera.position.set(0, 8, 40);
 
-    // --- SHADERS ---
-    const skyShader = {
-      uniforms: {
-        uTime: { value: 0 },
-        uSunPos: { value: new THREE.Vector3(0, 0.1, -1) },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        void main() {
-          vUv = uv;
-          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform vec3 uSunPos;
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        void main() {
-          vec3 preDawn = vec3(0.05, 0.04, 0.1);
-          vec3 sunrise = vec3(0.77, 0.36, 0.1);
-          vec3 golden = vec3(0.95, 0.64, 0.2);
-          
-          float sunFactor = clamp(dot(normalize(vWorldPos), normalize(uSunPos)), 0.0, 1.0);
-          vec3 skyColor = mix(preDawn, sunrise, pow(sunFactor, 4.0));
-          skyColor = mix(skyColor, golden, pow(sunFactor, 24.0));
-          
-          gl_FragColor = vec4(skyColor, 1.0);
-        }
-      `
-    };
+    const isLowEnd = (navigator.hardwareConcurrency || 4) < 4;
 
-    const wheatShader = {
-      uniforms: {
-        uTime: { value: 0 },
-        uMouse: { value: new THREE.Vector3(0, 0, 0) },
-        uWindStr: { value: 0.18 }
-      },
-      vertexShader: `
-        attribute float phase;
-        attribute vec3 instancePos;
-        uniform float uTime;
-        uniform vec3 uMouse;
-        uniform float uWindStr;
-        varying float vY;
-        varying vec2 vUv;
+    // --- POST PROCESSING ---
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 1.2, 0.4, 0.8);
+    composer.addPass(bloom);
+    composer.addPass(new FilmPass(0.18, 0, 0, false));
 
-        void main() {
-          vUv = uv;
-          vY = position.y;
-          vec3 pos = position;
-          
-          // Wind dynamics
-          float wind = sin(uTime * 1.2 + instancePos.x * 0.4 + instancePos.z * 0.3 + phase) * uWindStr;
-          pos.x += wind * vY;
-          pos.z += (wind * 0.5) * vY;
-
-          // Mouse influence (bend away)
-          float dist = distance(instancePos.xz, uMouse.xz);
-          if(dist < 12.0) {
-            float force = (1.0 - dist / 12.0) * 2.0;
-            vec2 dir = normalize(instancePos.xz - uMouse.xz);
-            pos.x += dir.x * force * vY;
-            pos.z += dir.y * force * vY;
-          }
-          
-          vec4 worldPos = instanceMatrix * vec4(pos, 1.0);
-          gl_Position = projectionMatrix * modelViewMatrix * worldPos;
-        }
-      `,
-      fragmentShader: `
-        varying float vY;
-        varying vec2 vUv;
-        void main() {
-          vec3 base = vec3(0.1, 0.2, 0.05); // Deep green
-          vec3 mid = vec3(0.78, 0.66, 0.43); // Wheat
-          vec3 tip = vec3(0.95, 0.8, 0.3); // Golden highlight
-          
-          vec3 color = mix(base, mid, vY);
-          color = mix(color, tip, pow(vY, 2.0));
-          
-          gl_FragColor = vec4(color, 1.0);
-        }
-      `
-    };
-
-    // --- INSTANCING: WHEAT ---
-    const stalkCount = lowEnd ? 20000 : 100000;
-    const stalkGeo = new THREE.CylinderGeometry(0.01, 0.03, 1, 4, 1);
-    stalkGeo.translate(0, 0.5, 0);
-
-    const phases = new Float32Array(stalkCount);
-    const instancePositions = new Float32Array(stalkCount * 3);
-    for (let i = 0; i < stalkCount; i++) {
-      phases[i] = Math.random() * Math.PI * 2;
-    }
-    stalkGeo.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
-
-    const stalkMat = new THREE.ShaderMaterial({
-      uniforms: wheatShader.uniforms,
-      vertexShader: wheatShader.vertexShader,
-      fragmentShader: wheatShader.fragmentShader
-    });
-
-    const stalks = new THREE.InstancedMesh(stalkGeo, stalkMat, stalkCount);
-    const dummy = new THREE.Object3D();
-    const range = 200;
-    for (let i = 0; i < stalkCount; i++) {
-      const tx = (Math.random() - 0.5) * range;
-      const tz = (Math.random() - 0.5) * range;
-      dummy.position.set(tx, 0, tz);
-      dummy.scale.set(1, 0.5 + Math.random() * 0.8, 1);
-      dummy.rotation.y = Math.random() * Math.PI;
-      dummy.updateMatrix();
-      stalks.setMatrixAt(i, dummy.matrix);
-      instancePositions[i * 3] = tx;
-      instancePositions[i * 3 + 1] = 0;
-      instancePositions[i * 3 + 2] = tz;
-    }
-    stalkGeo.setAttribute('instancePos', new THREE.InstancedBufferAttribute(instancePositions, 3));
-    scene.add(stalks);
-
-    // --- TERRAIN ---
-    const groundGeo = new THREE.PlaneGeometry(400, 400, 128, 128);
+    // --- ASSETS ---
+    // Terrain
+    const groundGeo = new THREE.PlaneGeometry(600, 600, 256, 256);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x050805, roughness: 1 });
+    const groundMat = new THREE.ShaderMaterial(TerrainShader);
     const ground = new THREE.Mesh(groundGeo, groundMat);
     scene.add(ground);
 
-    // --- SKY DOME ---
-    const skyGeo = new THREE.SphereGeometry(300, 32, 32);
-    const skyMat = new THREE.ShaderMaterial({
-      uniforms: skyShader.uniforms,
-      vertexShader: skyShader.vertexShader,
-      fragmentShader: skyShader.fragmentShader,
-      side: THREE.BackSide
-    });
+    // Wheat Field (120k Stalks)
+    const stalkCount = isLowEnd ? 25000 : 120000;
+    const stalkGeo = new THREE.CylinderGeometry(0.01, 0.02, 1, 3);
+    stalkGeo.translate(0, 0.5, 0);
+    const wheatMesh = new THREE.InstancedMesh(stalkGeo, new THREE.ShaderMaterial(FoliageShader), stalkCount);
+    const dummy = new THREE.Object3D();
+    const seeds = new Float32Array(stalkCount);
+    const positions = new Float32Array(stalkCount * 3);
+
+    for(let i=0; i<stalkCount; i++) {
+      const tx = (Math.random() - 0.5) * 200;
+      const tz = (Math.random() - 0.5) * 150 + 50;
+      dummy.position.set(tx, 0, tz);
+      dummy.rotation.y = Math.random() * Math.PI;
+      dummy.scale.set(1, 0.8 + Math.random() * 0.4, 1);
+      dummy.updateMatrix();
+      wheatMesh.setMatrixAt(i, dummy.matrix);
+      seeds[i] = Math.random() * Math.PI * 2;
+      positions[i*3] = tx; positions[i*3+1] = 0; positions[i*3+2] = tz;
+    }
+    stalkGeo.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+    stalkGeo.setAttribute('instancePos', new THREE.InstancedBufferAttribute(positions, 3));
+    scene.add(wheatMesh);
+
+    // Forest (40k Trees)
+    const treeCount = isLowEnd ? 8000 : 40000;
+    const treeGeo = new THREE.ConeGeometry(0.5, 2, 4);
+    treeGeo.translate(0, 1, 0);
+    const forestMesh = new THREE.InstancedMesh(treeGeo, new THREE.ShaderMaterial(FoliageShader), treeCount);
+    for(let i=0; i<treeCount; i++) {
+      const tx = (Math.random() - 0.5) * 300;
+      const tz = -(Math.random() * 200 + 50);
+      dummy.position.set(tx, 0, tz);
+      dummy.scale.set(1, 1 + Math.random() * 2, 1);
+      dummy.updateMatrix();
+      forestMesh.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(forestMesh);
+
+    // Sky
+    const skyGeo = new THREE.SphereGeometry(400, 32, 32);
+    const skyMat = new THREE.ShaderMaterial({ ...SkyShader, side: THREE.BackSide });
     const sky = new THREE.Mesh(skyGeo, skyMat);
     scene.add(sky);
 
-    // --- LIGHTS ---
-    const sun = new THREE.DirectionalLight(0xffffff, 1);
-    sun.position.set(0, 10, -50);
-    scene.add(sun);
-    scene.add(new THREE.AmbientLight(0x404040, 0.5));
+    // Starfield
+    const starCount = isLowEnd ? 20000 : 80000;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount * 3);
+    for(let i=0; i<starCount; i++) {
+      const r = 350;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+      starPos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+      starPos[i*3+2] = r * Math.cos(phi);
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true }));
+    scene.add(stars);
 
-    // --- ANIMATION ---
+    // Birds (Boids simplified)
+    const birdCount = isLowEnd ? 300 : 1200;
+    const birdGeo = new THREE.PlaneGeometry(0.2, 0.1);
+    const birds = new THREE.InstancedMesh(birdGeo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide }), birdCount);
+    const birdStates = Array.from({ length: birdCount }, () => ({
+      pos: new THREE.Vector3((Math.random()-0.5)*100, 20 + Math.random()*20, (Math.random()-0.5)*100),
+      vel: new THREE.Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).normalize().multiplyScalar(0.2)
+    }));
+    scene.add(birds);
+
+    // Cursor Follower
+    const mouse = new THREE.Vector2();
+    const cursorDummy = new THREE.Vector3();
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.x = (e.clientX / width) * 2 - 1;
+      mouse.y = -(e.clientY / height) * 2 + 1;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    // --- ANIMATION LOOP ---
     const clock = new THREE.Clock();
-    let frameId: number;
-
     const animate = () => {
       const time = clock.getElapsedTime();
       
       // Update Uniforms
-      stalkMat.uniforms.uTime.value = time;
+      groundMat.uniforms.uTime.value = time;
+      wheatMesh.material.uniforms.uTime.value = time;
+      forestMesh.material.uniforms.uTime.value = time;
       skyMat.uniforms.uTime.value = time;
-      
-      // Sun Movement simulation
-      const sunElevation = Math.sin(time * 0.1) * 0.5 + 0.5;
-      skyMat.uniforms.uSunPos.value.y = sunElevation;
-      
-      // Mouse Lerp
-      cursorRef.current.x += (cursorRef.current.targetX - cursorRef.current.x) * 0.08;
-      cursorRef.current.y += (cursorRef.current.targetY - cursorRef.current.y) * 0.08;
 
-      // Project mouse to 3D world for wheat bending
-      const vector = new THREE.Vector3(
-        (cursorRef.current.x / width) * 2 - 1,
-        -(cursorRef.current.y / height) * 2 + 1,
-        0.5
-      );
-      vector.unproject(camera);
-      const dir = vector.sub(camera.position).normalize();
-      const distance = -camera.position.y / dir.y;
-      const pos = camera.position.clone().add(dir.multiplyScalar(distance));
-      stalkMat.uniforms.uMouse.value.copy(pos);
+      // Mouse project
+      cursorDummy.set(mouse.x * 100, 0, mouse.y * 100);
+      wheatMesh.material.uniforms.uMouse.value.copy(cursorDummy);
+
+      // Murmuration update
+      for(let i=0; i<birdCount; i++) {
+        const b = birdStates[i];
+        b.pos.add(b.vel);
+        if(Math.abs(b.pos.x) > 150) b.vel.x *= -1;
+        if(Math.abs(b.pos.z) > 150) b.vel.z *= -1;
+        dummy.position.copy(b.pos);
+        dummy.lookAt(b.pos.clone().add(b.vel));
+        dummy.updateMatrix();
+        birds.setMatrixAt(i, dummy.matrix);
+      }
+      birds.instanceMatrix.needsUpdate = true;
 
       // Camera drift
-      camera.position.x = Math.sin(time * 0.2) * 2;
-      camera.lookAt(0, 2, 0);
+      camera.position.x = Math.sin(time * 0.1) * 5;
+      camera.lookAt(0, 5, 0);
 
-      renderer.render(scene, camera);
-      frameId = requestAnimationFrame(animate);
+      composer.render();
+      requestAnimationFrame(animate);
     };
     animate();
 
-    // --- GSAP HERO TIMELINE ---
-    const tl = gsap.timeline({ delay: 1.5 });
+    // --- GSAP TIMELINE ---
+    const tl = gsap.timeline({ delay: 1 });
     
-    tl.fromTo(".hero-title span", 
-      { y: -80, opacity: 0, rotateX: 90 },
-      { y: 0, opacity: 1, rotateX: 0, stagger: 0.04, ease: "back.out(1.7)", duration: 1.2 }
-    );
+    // Dissolve in
+    tl.fromTo(groundMat.uniforms.uBiolum, { value: 0 }, { value: 0.8, duration: 4, ease: "sine.inOut" });
 
-    tl.fromTo(".hero-tagline", 
-      { opacity: 0, scale: 1.08 },
-      { opacity: 1, scale: 1, duration: 1.5, ease: "power2.out" },
+    // Hero Text assembly
+    const chars = document.querySelectorAll('.hero-char');
+    chars.forEach((char) => {
+      const rect = char.getBoundingClientRect();
+      gsap.fromTo(char, 
+        { 
+          x: (Math.random() - 0.5) * window.innerWidth, 
+          y: (Math.random() - 0.5) * window.innerHeight, 
+          opacity: 0,
+          scale: 0.5,
+          rotation: Math.random() * 360
+        }, 
+        { 
+          x: 0, y: 0, opacity: 1, scale: 1, rotation: 0, 
+          duration: 2, ease: "back.out(2.2)", delay: 2 + Math.random() * 0.5 
+        }
+      );
+    });
+
+    // Tagline mist-condensation
+    tl.fromTo(".tagline-word", 
+      { filter: "blur(8px)", opacity: 0, scale: 1.15 },
+      { filter: "blur(0px)", opacity: 1, scale: 1, duration: 1.5, stagger: 0.15, ease: "power2.out" },
       "-=0.5"
     );
 
-    tl.fromTo(".hero-cta", 
-      { opacity: 0 },
-      { opacity: 1, duration: 1 },
-      "-=0.8"
-    );
-
-    // --- CURSOR OVERLAY ---
-    const ctx = canvasOverlayRef.current.getContext('2d');
-    const drawOverlay = () => {
-      if (!ctx || !canvasOverlayRef.current) return;
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw Cursor Trail
-      cursorTrailRef.current.push({ x: cursorRef.current.x, y: cursorRef.current.y });
-      if (cursorTrailRef.current.length > 12) cursorTrailRef.current.shift();
-
-      cursorTrailRef.current.forEach((p, i) => {
-        const opacity = i / 12;
-        ctx.fillStyle = `rgba(76, 175, 80, ${opacity * 0.3})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Main Cursor
-      ctx.strokeStyle = 'rgba(76, 175, 80, 0.4)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(cursorRef.current.x, cursorRef.current.y, 20, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = '#4CAF50';
-      ctx.beginPath();
-      ctx.arc(cursorRef.current.x, cursorRef.current.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      requestAnimationFrame(drawOverlay);
-    };
-    drawOverlay();
-
-    // --- HANDLERS ---
-    const handleMouseMove = (e: MouseEvent) => {
-      cursorRef.current.targetX = e.clientX;
-      cursorRef.current.targetY = e.clientY;
-    };
-
-    const handleResize = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      canvasOverlayRef.current!.width = w;
-      canvasOverlayRef.current!.height = h;
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      cancelAnimationFrame(frameId);
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
       renderer.dispose();
     };
   }, []);
 
   const handleEnter = () => {
-    gsap.to(".preloader-ui", { opacity: 0, duration: 1, ease: "power4.inOut" });
-    gsap.to(containerRef.current, { scale: 1.2, opacity: 0, duration: 1.5, ease: "power4.in", onComplete });
+    gsap.to(".intro-overlay", { 
+      opacity: 0, 
+      duration: 1.5, 
+      ease: "power4.inOut",
+      onComplete: () => {
+        setActive(false);
+        onComplete();
+      }
+    });
   };
 
+  if (!active) return null;
+
   return (
-    <div className={`fixed inset-0 z-[2000] bg-[#0A0F0A] overflow-hidden transition-opacity duration-1000 ${active ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-      <div ref={containerRef} className="absolute inset-0 preloader-canvas" />
-      <canvas 
-        ref={canvasOverlayRef} 
-        className="absolute inset-0 pointer-events-none z-50" 
-        width={dimensions.width} 
-        height={dimensions.height} 
-      />
+    <div className="fixed inset-0 z-[9999] bg-black overflow-hidden intro-overlay">
+      <div ref={containerRef} className="absolute inset-0" />
       
-      {/* HUD & UI */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none preloader-ui z-40">
-        <h1 className="hero-title font-headline text-[clamp(2.8rem,7vw,6.5rem)] text-[#F0F4F0] tracking-tighter leading-none mb-4 flex items-center perspective-[800px]">
+      {/* Custom Cursor */}
+      <div id="custom-cursor" className="hidden lg:block fixed w-3 h-3 bg-white rounded-full pointer-events-none z-[10000] mix-blend-difference" />
+
+      {/* Hero UI */}
+      <div ref={uiRef} className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-6">
+        <h1 className="flex gap-1 md:gap-4 perspective-[1000px] mb-6">
           {"KrishiShield AI".split("").map((char, i) => (
-            <span key={i} className="inline-block transform-gpu">{char === " " ? "\u00A0" : char}</span>
+            <span key={i} className="hero-char inline-block font-headline text-5xl md:text-9xl text-white font-black tracking-tighter">
+              {char === " " ? "\u00A0" : char}
+            </span>
           ))}
         </h1>
-        <p className="hero-tagline font-body font-light text-[#F0F4F0]/80 text-xl md:text-2xl mb-16 max-w-2xl text-center">
-          Where Every Field Becomes Intelligent.
-        </p>
-        
+
+        <div className="flex gap-3 mb-16">
+          {"Where Every Field Becomes Intelligent".split(" ").map((word, i) => (
+            <span key={i} className="tagline-word font-body text-white/80 text-lg md:text-2xl font-light">
+              {word}
+            </span>
+          ))}
+        </div>
+
         <button 
           onClick={handleEnter}
-          className="hero-cta pointer-events-auto group relative px-12 py-5 overflow-hidden transition-all active:scale-95"
+          className="pointer-events-auto group relative px-16 py-6 overflow-hidden transition-all active:scale-95"
         >
           <svg className="absolute inset-0 w-full h-full">
-            <rect className="cta-border w-full h-full fill-none stroke-[#4CAF50] stroke-2" />
+            <rect className="svg-border w-full h-full fill-none stroke-white/40 stroke-2" />
           </svg>
-          <span className="relative z-10 font-bold uppercase tracking-[0.2em] text-[#4CAF50] group-hover:text-white transition-colors duration-500 flex items-center gap-3">
-            Enter Platform <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+          <span className="relative z-10 font-bold uppercase tracking-[0.4em] text-white flex items-center gap-4 group-hover:gap-8 transition-all">
+            Enter the Field <ArrowRight size={20} />
           </span>
-          <div className="absolute inset-0 bg-[#4CAF50] -translate-x-full group-hover:translate-x-0 transition-transform duration-700 ease-out" />
+          <div className="absolute inset-0 bg-white/10 -translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
         </button>
       </div>
 
-      {/* Feature Glimpse (Visual Only) */}
-      <div className="absolute bottom-12 left-12 flex gap-8 pointer-events-none opacity-40">
-        {[
-          { label: 'NDVI Analytics', icon: '📡' },
-          { label: 'Yield Forecast', icon: '📈' },
-          { label: 'Market Hedging', icon: '🔒' }
-        ].map((f, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span className="text-xl">{f.icon}</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/60">{f.label}</span>
-          </div>
-        ))}
-      </div>
-
       {/* Controls */}
-      <div className="absolute bottom-12 right-12 z-50 pointer-events-auto flex items-center gap-4">
+      <div className="absolute bottom-12 right-12 flex gap-6 z-[10001]">
         <button 
           onClick={() => setMuted(!muted)}
-          className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors bg-black/20 backdrop-blur-md"
+          className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center text-white/40 hover:text-white transition-colors backdrop-blur-md"
         >
-          {muted ? <VolumeX size={18} /> : <Volume2 size={18} className="animate-pulse" />}
+          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
       </div>
 
       <style jsx global>{`
-        .cta-border {
-          stroke-dasharray: 800;
-          stroke-dashoffset: 800;
-          animation: draw-border 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards 1s;
+        .svg-border {
+          stroke-dasharray: 1000;
+          stroke-dashoffset: 1000;
+          animation: draw 1.5s forwards 4s;
         }
-        @keyframes draw-border {
-          to { stroke-dashoffset: 0; }
+        @keyframes draw { to { stroke-dashoffset: 0; } }
+        
+        #custom-cursor {
+          transition: transform 0.06s cubic-bezier(0.23, 1, 0.32, 1);
         }
-        .perspective-[800px] { perspective: 800px; }
       `}</style>
     </div>
   );
