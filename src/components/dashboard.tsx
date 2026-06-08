@@ -239,6 +239,18 @@ function CropDiagnostics({ profile }: { profile: UserProfile }) {
     if (queries) setExpertQueries(JSON.parse(queries));
   }, []);
 
+  const normalizeResult = (data: any): DiagnosisResult => {
+    return {
+      diagnosis: data?.diagnosis || 'Unknown Issue',
+      confidence: Number(data?.confidence) || 0,
+      cause: data?.cause || 'No specific cause identified.',
+      treatment: Array.isArray(data?.treatment) ? data.treatment : ['Consult a local expert.'],
+      prevention: Array.isArray(data?.prevention) ? data.prevention : ['Monitor field conditions.'],
+      recovery: data?.recovery || 'Varies by severity.',
+      severity: ['low', 'medium', 'high'].includes(data?.severity) ? data.severity : 'medium',
+    };
+  };
+
   const handleDiagnoseText = async () => {
     if (!symptomText.trim()) return;
     setLoading(true);
@@ -264,7 +276,7 @@ function CropDiagnostics({ profile }: { profile: UserProfile }) {
         body: JSON.stringify({ system, user, opts: { json: true, temperature: 0.2 } })
       });
       const data = await res.json();
-      setResult(data);
+      setResult(normalizeResult(data));
     } catch (err) {
       toast({ title: "Diagnosis failed", description: "Uplink error. Tap to retry.", variant: "destructive" });
     } finally {
@@ -305,7 +317,7 @@ function CropDiagnostics({ profile }: { profile: UserProfile }) {
         })
       });
       const data = await res.json();
-      setResult(data);
+      setResult(normalizeResult(data));
     } catch (err) {
       toast({ title: "Image analysis failed", description: "Could not process image telemetry.", variant: "destructive" });
     } finally {
@@ -672,7 +684,7 @@ function ResultCard({ result, saveToRecords, onExpertClick }: { result: Diagnosi
   const [copied, setCopied] = useState(false);
 
   const handleShare = () => {
-    const text = `KrishiShield AI Diagnosis: ${result.diagnosis} (${result.confidence}% confidence). Severity: ${result.severity}. Treatment: ${result.treatment.join(', ')}.`;
+    const text = `KrishiShield AI Diagnosis: ${result.diagnosis} (${result.confidence}% confidence). Severity: ${result.severity}. Treatment: ${result.treatment?.join(', ')}.`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -710,7 +722,7 @@ function ResultCard({ result, saveToRecords, onExpertClick }: { result: Diagnosi
           <div className="space-y-4">
             <p className="text-[10px] font-black uppercase opacity-30">Treatment Steps</p>
             <ul className="space-y-2">
-              {result.treatment.map((t, idx) => (
+              {result.treatment?.map((t, idx) => (
                 <li key={idx} className="flex gap-2 text-[12px] opacity-70">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                   {t}
@@ -721,7 +733,7 @@ function ResultCard({ result, saveToRecords, onExpertClick }: { result: Diagnosi
           <div className="space-y-4">
             <p className="text-[10px] font-black uppercase opacity-30">Prevention Tips</p>
             <ul className="space-y-2">
-              {result.prevention.map((t, idx) => (
+              {result.prevention?.map((t, idx) => (
                 <li key={idx} className="flex gap-2 text-[12px] opacity-70">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
                   {t}
