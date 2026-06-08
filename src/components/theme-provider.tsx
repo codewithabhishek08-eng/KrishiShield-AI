@@ -2,44 +2,39 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark' | 'field';
+type Theme = 'dark' | 'field-mode' | 'dawn-mode';
 
 interface ThemeContextType {
   theme: Theme;
-  toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('light');
+  const [theme, setThemeState] = useState<Theme>('dark');
 
   useEffect(() => {
-    const saved = localStorage.getItem('ks-theme') as Theme;
+    const saved = localStorage.getItem('ks_theme') as Theme;
     if (saved) {
       setThemeState(saved);
-      document.documentElement.classList.remove('light', 'dark', 'field');
+      document.documentElement.classList.remove('dark', 'field-mode', 'dawn-mode');
       document.documentElement.classList.add(saved);
     }
   }, []);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    localStorage.setItem('ks-theme', t);
-    document.documentElement.classList.remove('light', 'dark', 'field');
+    localStorage.setItem('ks_theme', t);
+    document.documentElement.classList.remove('dark', 'field-mode', 'dawn-mode');
     document.documentElement.classList.add(t);
   };
 
-  const toggleTheme = () => {
-    if (theme === 'light') setTheme('dark');
-    else if (theme === 'dark') setTheme('field');
-    else setTheme('light');
-  };
-
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
-      {children}
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      <div className={theme}>
+        {children}
+      </div>
     </ThemeContext.Provider>
   );
 }
