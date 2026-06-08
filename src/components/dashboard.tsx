@@ -1,28 +1,85 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Droplets, Thermometer, Bug, Sun, Lock, Map, Landmark, Users, ChevronRight } from 'lucide-react';
-import { getAiIntelligenceFeed, type AiIntelligenceFeedOutput } from '@/ai/flows/ai-intelligence-feed-flow';
+import { Droplets, Thermometer, Bug, Sun, Lock, Map, Landmark, Users, ChevronRight, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
+interface FeedItem {
+  id: string;
+  type: 'PRICE' | 'WEATHER' | 'DISEASE' | 'ALERT';
+  priority: 'high' | 'medium' | 'low';
+  time: string;
+  headline: string;
+  body: string;
+  action_label: string | null;
+}
 
 export function Dashboard() {
-  const [feed, setFeed] = useState<AiIntelligenceFeedOutput>([]);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [healthScore, setHealthScore] = useState(0);
+  const [commentary, setCommentary] = useState<string>('');
+  const [loadingCommentary, setLoadingCommentary] = useState(true);
+
+  const fallbackFeed: FeedItem[] = [
+    { id: '1', type: 'ALERT', priority: 'high', time: '--:--', headline: 'System Offline', body: 'Intelligence feed temporarily offline. Field data still active.', action_label: null },
+    { id: '2', type: 'ALERT', priority: 'medium', time: '--:--', headline: 'Monitoring Active', body: 'Real-time satellite tracking continues. Check manually for now.', action_label: null }
+  ];
 
   useEffect(() => {
-    const loadFeed = async () => {
+    const fetchIntelligentData = async () => {
+      const isoDate = new Date().toISOString().split('T')[0];
+      
+      // 1. Fetch Feed
       try {
-        const data = await getAiIntelligenceFeed();
-        setFeed(data);
+        const res = await fetch('/api/groq', {
+          method: 'POST',
+          body: JSON.stringify({
+            system: "You are KrishiShield's field intelligence engine. The farmer is Ramesh Kumar, tomato grower, Nasik Maharashtra. Today: " + isoDate + ".",
+            user: "Generate exactly 4 intelligence briefings for today. One must be PRICE (current tomato mandi conditions in Nasik), one WEATHER (next 48hr field impact), one DISEASE (any active biosecurity risk for Nasik tomatoes), one ALERT (anything urgent the farmer must act on today). Make them feel like a real ops briefing, not generic advice.",
+            opts: {
+              json: true,
+              cacheKey: `feed-${isoDate}`,
+              cacheTTL: 480, // 8 minutes
+              fallback: { feed: fallbackFeed }
+            }
+          })
+        });
+        const data = await res.json();
+        setFeed(data.feed || fallbackFeed);
       } catch (err) {
-        console.error(err);
+        setFeed(fallbackFeed);
       } finally {
         setLoadingFeed(false);
       }
+
+      // 2. Fetch Commentary
+      try {
+        const res = await fetch('/api/groq', {
+          method: 'POST',
+          body: JSON.stringify({
+            system: "You are a laconic agricultural AI. Given a crop health score and four sub-metrics, write ONE sentence (max 18 words) telling the farmer what the score means and what the single most important action is right now. Plain text only.",
+            user: `Score: 82/100. Moisture: 84%. Nitrogen: 22 kg/ha. Pest Risk: Low. Sunlight: 11 hrs today.`,
+            opts: {
+              temperature: 0.25,
+              cacheKey: `commentary-82`,
+              cacheTTL: 900 // 15 minutes
+            }
+          })
+        });
+        const text = await res.json();
+        setCommentary(typeof text === 'string' ? text : '');
+      } catch (err) {
+        setCommentary("Health is optimal. Maintain current irrigation schedule to ensure consistent growth.");
+      } finally {
+        setLoadingCommentary(false);
+      }
     };
-    loadFeed();
+
+    fetchIntelligentData();
 
     // Animate score
     const target = 82;
@@ -45,6 +102,15 @@ export function Dashboard() {
     return '#D32F2F';
   };
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return '#C62828';
+      case 'medium': return '#F57F17';
+      case 'low': return '#1B5E20';
+      default: return 'transparent';
+    }
+  };
+
   const nodes = [
     { icon: Droplets, label: '84%', sub: 'Moisture', pos: 'top' },
     { icon: Thermometer, label: '22%', sub: 'Nitrogen', pos: 'right' },
@@ -57,16 +123,9 @@ export function Dashboard() {
       {/* Health Orb Section */}
       <section className="flex flex-col items-center justify-center py-8 animate-in">
         <div className="relative w-[280px] h-[280px] md:w-[340px] md:h-[340px] flex items-center justify-center">
-          {/* Main Orb */}
           <div className="relative w-48 h-48 md:w-60 md:h-60 rounded-full flex items-center justify-center shadow-2xl overflow-hidden group">
             <svg className="absolute inset-0 w-full h-full rotate-[-90deg]">
-              <circle
-                cx="50%" cy="50%" r="48%"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="8"
-                className="text-muted/10"
-              />
+              <circle cx="50%" cy="50%" r="48%" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/10" />
               <circle
                 cx="50%" cy="50%" r="48%"
                 fill="none"
@@ -81,13 +140,10 @@ export function Dashboard() {
               <span className="text-5xl md:text-6xl font-headline font-black block tracking-tighter">
                 {healthScore}
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-widest opacity-40">
-                Health Index
-              </span>
+              <span className="text-[10px] uppercase font-bold tracking-widest opacity-40">Health Index</span>
             </div>
           </div>
 
-          {/* Satellite Nodes */}
           {nodes.map((node, i) => {
             const styles: Record<string, string> = {
               top: 'top-0 left-1/2 -translate-x-1/2',
@@ -107,6 +163,17 @@ export function Dashboard() {
               </div>
             );
           })}
+        </div>
+
+        {/* AI Commentary */}
+        <div className="mt-8 text-center max-w-md px-4 min-h-[1.5rem]">
+          {loadingCommentary ? (
+            <Skeleton className="h-4 w-64 mx-auto opacity-20" />
+          ) : (
+            <p className="text-sm font-body text-muted-foreground animate-in visible">
+              {commentary}
+            </p>
+          )}
         </div>
       </section>
 
@@ -128,9 +195,7 @@ export function Dashboard() {
                 <span className="font-medium text-sm text-left">{action.label}</span>
               </div>
               <ChevronRight size={16} className="opacity-20 group-hover:opacity-100 transition-opacity" />
-              <style jsx>{`
-                button { border-left-color: ${action.color}; }
-              `}</style>
+              <style jsx>{`button { border-left-color: ${action.color}; }`}</style>
             </button>
           ))}
         </div>
@@ -144,20 +209,35 @@ export function Dashboard() {
         </div>
         <div className="space-y-4">
           {loadingFeed ? (
-            [1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl bg-card" />)
+            [1, 2, 3, 4].map(i => (
+              <div key={i} className="h-28 w-full bg-card rounded-2xl p-4 flex flex-col gap-2">
+                <Skeleton className="h-4 w-1/4" />
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ))
           ) : (
-            feed.map((item, i) => (
-              <div key={i} className="relative pl-6 py-4 bg-card border border-white/5 rounded-2xl group hover:border-primary/30 transition-all">
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary/20 rounded-l-2xl group-hover:bg-primary transition-colors" />
+            feed.map((item) => (
+              <div key={item.id} className="relative pl-6 py-4 bg-card border border-white/5 rounded-2xl group hover:border-primary/30 transition-all flex flex-col justify-between">
+                <div 
+                  className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl transition-colors"
+                  style={{ backgroundColor: getPriorityColor(item.priority) }}
+                />
                 <div className="flex items-center justify-between mb-2 pr-4">
-                  <span className="text-[10px] font-code opacity-40">{item.timestamp} IST</span>
+                  <span className="text-[10px] font-code opacity-40">{item.time} IST</span>
                   <Badge variant="secondary" className="text-[9px] px-2 py-0 h-4 uppercase font-bold">
                     {item.type}
                   </Badge>
                 </div>
-                <p className="text-sm leading-relaxed max-w-2xl opacity-80">
+                <h4 className="font-bold text-sm mb-1">{item.headline}</h4>
+                <p className="text-xs leading-relaxed max-w-2xl opacity-70">
                   {item.body}
                 </p>
+                {item.action_label && (
+                  <Button variant="ghost" size="sm" className="self-end mt-2 text-[10px] h-6 uppercase font-black tracking-widest opacity-40 hover:opacity-100">
+                    {item.action_label}
+                  </Button>
+                )}
               </div>
             ))
           )}
