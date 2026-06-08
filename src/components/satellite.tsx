@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -13,10 +14,7 @@ import { cn } from '@/lib/utils';
 import { getProfile, buildPrompt, type UserProfile } from '@/lib/user-profile';
 import { getTacticalInsight } from '@/ai/flows/tactical-insight-flow';
 import { 
-  AreaChart, Area, LineChart, Line, Bar, 
-  XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, ReferenceLine, 
-  ComposedChart, Cell 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, 
 } from 'recharts';
 
 import 'leaflet/dist/leaflet.css';
@@ -143,8 +141,6 @@ export function SatelliteScreen() {
   const [profile, setProfile] = useState<UserProfile>(getProfile());
   const [selectedField, setSelectedField] = useState<FieldData | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
@@ -170,11 +166,18 @@ export function SatelliteScreen() {
     if (typeof window === 'undefined') return;
     const L = require('leaflet');
     
-    const container = document.getElementById('satellite-map');
-    if (!container) return;
+    const mapContainer = document.getElementById('satellite-map');
+    if (!mapContainer) return;
 
+    // Critical fix: Ensure container is clean and no previous instance exists
     if (mapRef.current) {
       mapRef.current.remove();
+      mapRef.current = null;
+    }
+    
+    // Explicitly clear Leaflet's internal marker on the DOM element to prevent "Map container being reused"
+    if ((mapContainer as any)._leaflet_id) {
+      (mapContainer as any)._leaflet_id = null;
     }
 
     const map = L.map('satellite-map', {
@@ -188,43 +191,50 @@ export function SatelliteScreen() {
 
     async function initLocation() {
       const coords = await geocodeLocation(profile.city, profile.state);
-      map.flyTo(coords, 13, { duration: 3 });
-      
-      const outbreakIcon = L.divIcon({
-        className: 'custom-div-icon',
-        html: `<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white radar-pulse relative"></div>`,
-        iconSize: [16, 16]
-      });
-
-      L.marker(coords, { icon: outbreakIcon })
-        .addTo(map)
-        .on('click', () => {
-          setSelectedField({
-            id: 'field-1',
-            name: `${profile.crops[0]} Plot · ${profile.city}`,
-            crop: profile.crops[0],
-            location: `${profile.city}, ${profile.state}`,
-            metrics: {
-              healthScore: 78,
-              ndvi: 0.64,
-              diseaseRisk: 22,
-              daysToHarvest: 105,
-              humidity: 65,
-              temp: 29,
-              rainfall: 14,
-              waterNeed: 42
-            },
-            ndviHistory: Array.from({ length: 12 }, (_, i) => ({ week: `W${i + 1}`, baseline: 0.75, field: 0.5 + Math.random() * 0.2 })),
-            diseaseHistory: Array.from({ length: 30 }, (_, i) => ({ day: `${i + 1}`, probability: Math.random() * 30 })),
-            yieldForecast: [{ month: 'Jul', optimal: 4000, forecast: 3600, untreated: 3000 }, { month: 'Aug', optimal: 4500, forecast: 3900, untreated: 2800 }],
-            rainfallHistory: Array.from({ length: 7 }, (_, i) => ({ day: ['M','T','W','T','F','S','S'][i], actual: Math.random() * 50, requirement: 35 }))
-          });
+      if (mapRef.current) {
+        mapRef.current.flyTo(coords, 13, { duration: 3 });
+        
+        const outbreakIcon = L.divIcon({
+          className: 'custom-div-icon',
+          html: `<div class="w-4 h-4 bg-red-500 rounded-full border-2 border-white radar-pulse relative"></div>`,
+          iconSize: [16, 16]
         });
+
+        L.marker(coords, { icon: outbreakIcon })
+          .addTo(mapRef.current)
+          .on('click', () => {
+            setSelectedField({
+              id: 'field-1',
+              name: `${profile.crops[0]} Plot · ${profile.city}`,
+              crop: profile.crops[0],
+              location: `${profile.city}, ${profile.state}`,
+              metrics: {
+                healthScore: 78,
+                ndvi: 0.64,
+                diseaseRisk: 22,
+                daysToHarvest: 105,
+                humidity: 65,
+                temp: 29,
+                rainfall: 14,
+                waterNeed: 42
+              },
+              ndviHistory: Array.from({ length: 12 }, (_, i) => ({ week: `W${i + 1}`, baseline: 0.75, field: 0.5 + Math.random() * 0.2 })),
+              diseaseHistory: Array.from({ length: 30 }, (_, i) => ({ day: `${i + 1}`, probability: Math.random() * 30 })),
+              yieldForecast: [{ month: 'Jul', optimal: 4000, forecast: 3600, untreated: 3000 }, { month: 'Aug', optimal: 4500, forecast: 3900, untreated: 2800 }],
+              rainfallHistory: Array.from({ length: 7 }, (_, i) => ({ day: ['M','T','W','T','F','S','S'][i], actual: Math.random() * 50, requirement: 35 }))
+            });
+          });
+      }
     }
 
     initLocation();
 
-    return () => { if (mapRef.current) mapRef.current.remove(); };
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, [profile, geocodeLocation]);
 
   if (!selectedField) {
@@ -275,7 +285,6 @@ export function SatelliteScreen() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-            {/* Additional charts would follow same pattern */}
           </div>
 
           <div className="lg:col-span-4 space-y-4">
@@ -324,3 +333,4 @@ export function SatelliteScreen() {
     </div>
   );
 }
+
