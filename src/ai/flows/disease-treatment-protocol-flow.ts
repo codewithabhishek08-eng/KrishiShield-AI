@@ -22,7 +22,9 @@ const TreatmentStepSchema = z.object({
   step_number: z.number().describe('The sequential number of the treatment step.'),
   action: z.string().describe('A concise action to be taken.'),
   detail: z.string().describe('A detailed description of the action.'),
+  product: z.string().describe('The name of a specific, India-available agricultural product to use.'),
   urgency: z.enum(['immediate', 'soon', 'monitor']).describe('The urgency level.'),
+  cost_inr: z.number().describe('The estimated cost in Indian Rupees (INR).'),
 });
 
 const DiseaseTreatmentProtocolOutputSchema = z.array(TreatmentStepSchema);
@@ -35,15 +37,21 @@ const diseaseTreatmentProtocolFlow = ai.defineFlow(
     outputSchema: DiseaseTreatmentProtocolOutputSchema,
   },
   async (input) => {
-    const system = `You are an expert agricultural advisor. Provide 3 clear treatment steps for the specified disease and crop. Return a JSON array of objects.`;
-    const user = `Disease: ${input.diseaseName}, Crop/Location: ${input.cropAndLocation}. Each object needs: step_number (int), action (string, max 5 words), detail (string, max 25 words), urgency (immediate|soon|monitor).`;
+    const system = `You are an expert agricultural advisor and plant pathologist. 
+    Provide 3 clear treatment steps for the specified disease and crop. 
+    Return a JSON object with a key 'treatment_steps' containing an array of objects.`;
+    
+    const user = `Disease: ${input.diseaseName}, Crop/Location: ${input.cropAndLocation}. 
+    Each object needs: step_number (int), action (string, max 5 words), detail (string, max 25 words), 
+    product (string), urgency (immediate|soon|monitor), cost_inr (number).`;
 
     const output = await groq(system, user, {
       json: true,
       temperature: 0.3
     });
 
-    return output || [];
+    // Extract the array from the wrapper object to satisfy the outputSchema
+    return output?.treatment_steps || [];
   }
 );
 
