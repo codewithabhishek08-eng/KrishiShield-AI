@@ -1,74 +1,30 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 120 50% 24%;
-    --primary-foreground: 60 30% 96%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
+    --background: 120 40% 6%;
+    --foreground: 0 0% 100%;
+    --card: 120 40% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 120 40% 4%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 122 47% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 120 30% 15%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 120 30% 12%;
+    --muted-foreground: 0 0% 60%;
     --accent: 210 79% 46%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 120 50% 24%;
-    --radius: 0.5rem;
-
-    /* Custom Colors */
-    --forest-green: 120 50% 24%; /* #1B5E20 */
-    --precision-blue: 210 79% 46%; /* #1976D2 */
-    --field-cream: 43 89% 95%; /* #FDF6E3 */
-    --zenith-indigo: 235 40% 10%; /* #0F1123 */
-
-    /* Animation Props */
-    --orb-rotation: 0deg;
-  }
-
-  .dark {
-    --background: 235 40% 4%;
-    --foreground: 0 0% 98%;
-    --card: 235 40% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 235 40% 4%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 120 40% 40%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 235 40% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 235 40% 12%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 210 79% 46%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 235 40% 15%;
-    --input: 235 40% 15%;
-    --ring: 120 40% 40%;
-  }
-
-  /* Field Mode: High Contrast Warm */
-  .field {
-    --background: 43 89% 95%; /* #FDF6E3 */
-    --foreground: 0 0% 0%;
-    --card: 43 80% 92%;
-    --card-foreground: 0 0% 0%;
-    --primary: 120 50% 15%;
-    --primary-foreground: 43 89% 95%;
-    --accent: 120 60% 20%;
-    --border: 120 30% 80%;
-    --muted: 43 50% 85%;
-    --muted-foreground: 0 0% 20%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 122 47% 49%;
+    --radius: 0.75rem;
   }
 }
 
@@ -77,26 +33,37 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground transition-colors duration-500;
+    @apply bg-background text-foreground antialiased selection:bg-primary/30;
   }
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 .animate-in {
-  opacity: 0;
-  transform: translateY(24px);
+  animation: fade-in-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.visible {
-  opacity: 1;
-  transform: translateY(0);
-  transition: 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-@keyframes anybody-italic {
-  from { font-variation-settings: 'ital' 0; }
-  to { font-variation-settings: 'ital' -10; }
+.font-code {
+  font-family: 'Source Code Pro', monospace;
 }
 
-.font-anybody-animated {
-  animation: anybody-italic 3s forwards;
+.font-headline {
+  font-family: 'Anybody', sans-serif;
 }
