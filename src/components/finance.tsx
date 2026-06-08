@@ -59,7 +59,7 @@ export function FinanceScreen() {
         const text = await res.json();
         setImpactStory(typeof text === 'string' ? text : '');
       } catch (err) {
-        console.error(err);
+        console.error('Impact story fetch failed:', err);
       } finally {
         setLoadingStory(false);
       }
@@ -70,7 +70,7 @@ export function FinanceScreen() {
         const res = await fetch('/api/groq', {
           method: 'POST',
           body: JSON.stringify({
-            system: "You are an AI loan officer explaining a decision to a farmer in simple, encouraging language. No financial jargon. Respond in JSON.",
+            system: "You are an AI loan officer explaining a decision to a farmer in simple, encouraging language. No financial jargon. Respond in JSON with a 'summary' string and 'factors' array of objects.",
             user: "Farmer: Ramesh Kumar. Crop Health Score: 82/100. Satellite verified: yes. Risk score: 18/100. Approved loan: ₹1,40,000 at 1% per annum. Explain why in simple terms.",
             opts: {
               json: true,
@@ -81,9 +81,15 @@ export function FinanceScreen() {
           })
         });
         const data = await res.json();
-        setExplanation(data);
+        // Ensure data has expected structure
+        if (data && data.summary) {
+          setExplanation({
+            summary: data.summary,
+            factors: Array.isArray(data.factors) ? data.factors : []
+          });
+        }
       } catch (err) {
-        console.error(err);
+        console.error('Eligibility fetch failed:', err);
       } finally {
         setLoadingExplanation(false);
       }
@@ -139,7 +145,7 @@ export function FinanceScreen() {
                         <div className="bg-muted/30 p-4 rounded-2xl border border-white/5 space-y-3">
                           <p className="text-sm opacity-80 leading-relaxed">{explanation.summary}</p>
                           <div className="space-y-2">
-                            {explanation.factors.map((f, i) => (
+                            {explanation.factors?.map((f, i) => (
                               <div key={i} className="flex items-center gap-3">
                                 <div className={`w-1.5 h-1.5 rounded-full ${f.impact === 'positive' ? 'bg-primary' : 'bg-muted'}`} />
                                 <div className="flex-1">
