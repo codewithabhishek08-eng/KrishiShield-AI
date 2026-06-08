@@ -216,6 +216,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       roughness: 0.9,
       metalness: 0.1,
       onBeforeCompile: (shader) => {
+
         // Inject varying declaration to both shaders
         shader.vertexShader = 'varying vec2 vUv;\n' + shader.vertexShader;
         shader.fragmentShader = 'varying vec2 vUv;\n' + shader.fragmentShader;
