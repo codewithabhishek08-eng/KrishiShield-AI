@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,56 +12,46 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { Volume2, VolumeX, ArrowRight } from 'lucide-react';
 
 /**
- * KrishiShield AI - Cinematic Nature Landing
- * Procedural world generation via Three.js + GLSL
+ * KrishiShield AI - Next-Level Cinematic Nature Portal
+ * Procedural world generation via Three.js + Custom GLSL
  */
 
 // --- SHADERS ---
 
-const TerrainShader = {
+const NatureShader = {
   uniforms: {
     uTime: { value: 0 },
-    uBiolum: { value: 0.2 },
+    uSunPos: { value: new THREE.Vector3(0, 10, 0) },
+    uRain: { value: 0 },
+    uWind: { value: 1.0 },
+    uDayCycle: { value: 0 },
   },
   vertexShader: `
-    uniform float uTime;
     varying vec2 vUv;
     varying vec3 vWorldPos;
+    varying float vDist;
+    uniform float uTime;
     
-    // Simple noise for displacement
-    float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-    float noise(vec2 p) {
-      vec2 i = floor(p); vec2 f = fract(p);
-      f = f*f*(3.0-2.0*f);
-      return mix(mix(hash(i + vec2(0,0)), hash(i + vec2(1,0)), f.x),
-                 mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
-    }
-
     void main() {
       vUv = uv;
-      vec3 pos = position;
-      
-      // Breathing earth logic
-      float disp = noise(pos.xz * 0.05 + uTime * 0.1) * 2.0;
-      disp += sin(uTime * 0.7) * 0.4; // Heartbeat
-      pos.y += disp;
-      
-      vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
   fragmentShader: `
     uniform float uTime;
-    uniform float uBiolum;
+    uniform float uDayCycle;
+    uniform float uRain;
     varying vec2 vUv;
     varying vec3 vWorldPos;
 
     void main() {
-      vec3 soilColor = vec3(0.05, 0.04, 0.03);
-      vec3 crackColor = vec3(0.0, 0.8, 0.7); // Mycorrhizal teal
+      vec3 forestDark = vec3(0.01, 0.04, 0.01);
+      vec3 goldenHour = vec3(0.9, 0.5, 0.2);
+      vec3 skyBlue = vec3(0.1, 0.3, 0.8);
       
-      float crack = step(0.92, fract(vWorldPos.x * 2.0 + sin(vWorldPos.z * 1.5 + uTime)));
-      vec3 finalColor = mix(soilColor, crackColor, crack * uBiolum * (0.5 + 0.5 * sin(uTime * 2.0)));
+      vec3 finalColor = mix(forestDark, skyBlue, uDayCycle);
+      finalColor = mix(finalColor, goldenHour, sin(uTime * 0.1) * 0.5 + 0.5);
       
       gl_FragColor = vec4(finalColor, 1.0);
     }
@@ -70,9 +61,10 @@ const TerrainShader = {
 const FoliageShader = {
   uniforms: {
     uTime: { value: 0 },
-    uMouse: { value: new THREE.Vector3(0,0,0) },
+    uMouse: { value: new THREE.Vector3(0, 0, 0) },
+    uSunPos: { value: new THREE.Vector3(0, 20, 0) },
     uWind: { value: 1.0 },
-    uSeason: { value: 0.0 } // 0 Green -> 1 Gold
+    uRain: { value: 0.0 },
   },
   vertexShader: `
     attribute vec3 instancePos;
@@ -81,20 +73,21 @@ const FoliageShader = {
     uniform vec3 uMouse;
     uniform float uWind;
     varying float vY;
-    varying float vType;
+    varying float vSeed;
 
     void main() {
       vY = position.y;
+      vSeed = instanceSeed;
       vec3 pos = position;
       
-      // Wind wave
-      float wind = sin(uTime * 1.2 + instancePos.x * 0.2 + instancePos.z * 0.1 + instanceSeed) * 0.15 * uWind;
+      // Dynamic wind swaying
+      float wind = sin(uTime * 1.5 + instancePos.x * 0.3 + instanceSeed) * 0.15 * uWind;
       pos.x += wind * vY;
       
-      // Mouse repulsion
+      // Cursor repulsion (Magnetic force)
       float dist = distance(instancePos.xz, uMouse.xz);
-      if(dist < 15.0) {
-        float force = (1.0 - dist / 15.0) * 1.5;
+      if(dist < 20.0) {
+        float force = (1.0 - dist / 20.0) * 2.5;
         vec2 dir = normalize(instancePos.xz - uMouse.xz);
         pos.xz += dir * force * vY;
       }
@@ -104,43 +97,20 @@ const FoliageShader = {
     }
   `,
   fragmentShader: `
-    uniform float uSeason;
-    varying float vY;
-    void main() {
-      vec3 green = mix(vec3(0.02, 0.1, 0.02), vec3(0.1, 0.3, 0.1), vY);
-      vec3 gold = mix(vec3(0.3, 0.2, 0.05), vec3(0.95, 0.8, 0.3), vY);
-      gl_FragColor = vec4(mix(green, gold, uSeason), 1.0);
-    }
-  `
-};
-
-const SkyShader = {
-  uniforms: {
-    uTime: { value: 0 },
-    uPhase: { value: 0 }, // 0: Dawn, 1: Sunrise, 2: Golden, 3: Storm, 4: Night
-    uStorm: { value: 0.0 }
-  },
-  vertexShader: `
-    varying vec3 vWorldPos;
-    void main() {
-      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
     uniform float uTime;
-    uniform float uStorm;
-    varying vec3 vWorldPos;
-
+    uniform float uRain;
+    varying float vY;
+    varying float vSeed;
+    
     void main() {
-      vec3 sky = vec3(0.01, 0.01, 0.02); // Base Night
-      float d = dot(normalize(vWorldPos), vec3(0, 1, 0));
+      vec3 deepGreen = vec3(0.01, 0.1, 0.02);
+      vec3 brightGreen = vec3(0.2, 0.5, 0.1);
+      vec3 seasonalColor = mix(deepGreen, brightGreen, vY + sin(vSeed) * 0.2);
       
-      // Storm lightning logic
-      float lightning = step(0.998, sin(uTime * 20.0)) * uStorm;
-      sky += vec3(0.5, 0.6, 0.8) * lightning;
+      // Wetness factor during rain
+      seasonalColor *= (1.0 - uRain * 0.4);
       
-      gl_FragColor = vec4(sky, 1.0);
+      gl_FragColor = vec4(seasonalColor, 1.0);
     }
   `
 };
@@ -150,6 +120,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const uiRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(true);
   const [muted, setMuted] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -157,83 +128,84 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     // --- SETUP ---
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     containerRef.current.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-    camera.position.set(0, 8, 40);
+    const camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 2000);
+    camera.position.set(0, 15, 60);
 
     const isLowEnd = (navigator.hardwareConcurrency || 4) < 4;
 
     // --- POST PROCESSING ---
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 1.2, 0.4, 0.8);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 1.4, 0.4, 0.7);
     composer.addPass(bloom);
-    composer.addPass(new FilmPass(0.18, 0, 0, false));
+    composer.addPass(new FilmPass(0.12, 0, 0, false));
 
-    // --- ASSETS ---
-    // Terrain
-    const groundGeo = new THREE.PlaneGeometry(600, 600, 256, 256);
+    // --- CINEMATIC NATURE LAYERS ---
+    
+    // 1. Terrain (Micro-displacement)
+    const groundGeo = new THREE.PlaneGeometry(800, 800, 256, 256);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundMat = new THREE.ShaderMaterial(TerrainShader);
+    const groundMat = new THREE.ShaderMaterial({
+      ...NatureShader,
+      uniforms: {
+        ...NatureShader.uniforms,
+        uBiolum: { value: 0.5 }
+      }
+    });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     scene.add(ground);
 
-    // Wheat Field (120k Stalks)
-    const stalkCount = isLowEnd ? 25000 : 120000;
-    const stalkGeo = new THREE.CylinderGeometry(0.01, 0.02, 1, 3);
-    stalkGeo.translate(0, 0.5, 0);
-    const wheatMesh = new THREE.InstancedMesh(stalkGeo, new THREE.ShaderMaterial(FoliageShader), stalkCount);
+    // 2. Forest Cathedral (60k Trees)
+    const treeCount = isLowEnd ? 8000 : 60000;
+    const treeGeo = new THREE.ConeGeometry(0.5, 3, 4);
+    treeGeo.translate(0, 1.5, 0);
+    const forest = new THREE.InstancedMesh(treeGeo, new THREE.ShaderMaterial(FoliageShader), treeCount);
     const dummy = new THREE.Object3D();
-    const seeds = new Float32Array(stalkCount);
-    const positions = new Float32Array(stalkCount * 3);
+    const seeds = new Float32Array(treeCount);
+    const positions = new Float32Array(treeCount * 3);
 
-    for(let i=0; i<stalkCount; i++) {
-      const tx = (Math.random() - 0.5) * 200;
-      const tz = (Math.random() - 0.5) * 150 + 50;
+    for(let i=0; i<treeCount; i++) {
+      const tx = (Math.random() - 0.5) * 500;
+      const tz = (Math.random() - 0.5) * 400 - 50;
       dummy.position.set(tx, 0, tz);
       dummy.rotation.y = Math.random() * Math.PI;
-      dummy.scale.set(1, 0.8 + Math.random() * 0.4, 1);
+      dummy.scale.set(0.8 + Math.random(), 1 + Math.random() * 2, 0.8 + Math.random());
       dummy.updateMatrix();
-      wheatMesh.setMatrixAt(i, dummy.matrix);
-      seeds[i] = Math.random() * Math.PI * 2;
+      forest.setMatrixAt(i, dummy.matrix);
+      seeds[i] = Math.random() * 10.0;
       positions[i*3] = tx; positions[i*3+1] = 0; positions[i*3+2] = tz;
     }
-    stalkGeo.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
-    stalkGeo.setAttribute('instancePos', new THREE.InstancedBufferAttribute(positions, 3));
-    scene.add(wheatMesh);
+    treeGeo.setAttribute('instanceSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+    treeGeo.setAttribute('instancePos', new THREE.InstancedBufferAttribute(positions, 3));
+    scene.add(forest);
 
-    // Forest (40k Trees)
-    const treeCount = isLowEnd ? 8000 : 40000;
-    const treeGeo = new THREE.ConeGeometry(0.5, 2, 4);
-    treeGeo.translate(0, 1, 0);
-    const forestMesh = new THREE.InstancedMesh(treeGeo, new THREE.ShaderMaterial(FoliageShader), treeCount);
-    for(let i=0; i<treeCount; i++) {
+    // 3. Wheat Plain (120k Stalks)
+    const stalkCount = isLowEnd ? 20000 : 120000;
+    const stalkGeo = new THREE.CylinderGeometry(0.02, 0.04, 1.2, 3);
+    stalkGeo.translate(0, 0.6, 0);
+    const wheatField = new THREE.InstancedMesh(stalkGeo, new THREE.ShaderMaterial(FoliageShader), stalkCount);
+    for(let i=0; i<stalkCount; i++) {
       const tx = (Math.random() - 0.5) * 300;
-      const tz = -(Math.random() * 200 + 50);
+      const tz = (Math.random() * 150) + 100;
       dummy.position.set(tx, 0, tz);
-      dummy.scale.set(1, 1 + Math.random() * 2, 1);
+      dummy.scale.set(1, 0.8 + Math.random() * 0.4, 1);
       dummy.updateMatrix();
-      forestMesh.setMatrixAt(i, dummy.matrix);
+      wheatField.setMatrixAt(i, dummy.matrix);
     }
-    scene.add(forestMesh);
+    scene.add(wheatField);
 
-    // Sky
-    const skyGeo = new THREE.SphereGeometry(400, 32, 32);
-    const skyMat = new THREE.ShaderMaterial({ ...SkyShader, side: THREE.BackSide });
-    const sky = new THREE.Mesh(skyGeo, skyMat);
-    scene.add(sky);
-
-    // Starfield
-    const starCount = isLowEnd ? 20000 : 80000;
+    // 4. Atmosphere (Stars & Fireflies)
+    const starCount = isLowEnd ? 10000 : 120000;
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(starCount * 3);
     for(let i=0; i<starCount; i++) {
-      const r = 350;
+      const r = 500;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       starPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
@@ -244,22 +216,41 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true }));
     scene.add(stars);
 
-    // Birds (Boids simplified)
-    const birdCount = isLowEnd ? 300 : 1200;
-    const birdGeo = new THREE.PlaneGeometry(0.2, 0.1);
+    // 5. Murmuration (Boids - 1200 Birds)
+    const birdCount = isLowEnd ? 200 : 1200;
+    const birdGeo = new THREE.PlaneGeometry(0.3, 0.1);
     const birds = new THREE.InstancedMesh(birdGeo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide }), birdCount);
-    const birdStates = Array.from({ length: birdCount }, () => ({
-      pos: new THREE.Vector3((Math.random()-0.5)*100, 20 + Math.random()*20, (Math.random()-0.5)*100),
+    const birdData = Array.from({ length: birdCount }, () => ({
+      pos: new THREE.Vector3((Math.random()-0.5)*100, 30 + Math.random()*20, (Math.random()-0.5)*100),
       vel: new THREE.Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).normalize().multiplyScalar(0.2)
     }));
     scene.add(birds);
 
-    // Cursor Follower
+    // 6. Rain System (100k segments)
+    const rainCount = isLowEnd ? 0 : 100000;
+    const rainGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.8);
+    const rain = new THREE.InstancedMesh(rainGeo, new THREE.MeshBasicMaterial({ color: 0xaaaaaa, transparent: true, opacity: 0.3 }), rainCount);
+    const rainData = Array.from({ length: rainCount }, () => ({
+      pos: new THREE.Vector3((Math.random()-0.5)*400, Math.random()*100, (Math.random()-0.5)*400),
+      speed: 1.5 + Math.random() * 2.5
+    }));
+    scene.add(rain);
+
+    // --- INTERACTIONS ---
     const mouse = new THREE.Vector2();
-    const cursorDummy = new THREE.Vector3();
+    const cursor3D = new THREE.Vector3();
+    
     const handleMouseMove = (e: MouseEvent) => {
-      mouse.x = (e.clientX / width) * 2 - 1;
-      mouse.y = -(e.clientY / height) * 2 + 1;
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      
+      // Magnetic cursor trail
+      gsap.to("#custom-cursor", {
+        x: e.clientX,
+        y: e.clientY,
+        duration: 0.1,
+        ease: "power2.out"
+      });
     };
     window.addEventListener('mousemove', handleMouseMove);
 
@@ -267,23 +258,37 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const clock = new THREE.Clock();
     const animate = () => {
       const time = clock.getElapsedTime();
-      
+      const delta = clock.getDelta();
+
       // Update Uniforms
       groundMat.uniforms.uTime.value = time;
-      wheatMesh.material.uniforms.uTime.value = time;
-      forestMesh.material.uniforms.uTime.value = time;
-      skyMat.uniforms.uTime.value = time;
+      forest.material.uniforms.uTime.value = time;
+      wheatField.material.uniforms.uTime.value = time;
 
-      // Mouse project
-      cursorDummy.set(mouse.x * 100, 0, mouse.y * 100);
-      wheatMesh.material.uniforms.uMouse.value.copy(cursorDummy);
+      // Project mouse to 3D plane for interactive foliage
+      cursor3D.set(mouse.x * 200, 0, -mouse.y * 200);
+      forest.material.uniforms.uMouse.value.copy(cursor3D);
+      wheatField.material.uniforms.uMouse.value.copy(cursor3D);
 
-      // Murmuration update
+      // Rain movement
+      if (rainCount > 0) {
+        for(let i=0; i<rainCount; i++) {
+          const r = rainData[i];
+          r.pos.y -= r.speed;
+          if(r.pos.y < 0) r.pos.y = 100;
+          dummy.position.copy(r.pos);
+          dummy.updateMatrix();
+          rain.setMatrixAt(i, dummy.matrix);
+        }
+        rain.instanceMatrix.needsUpdate = true;
+      }
+
+      // Bird murmuration update
       for(let i=0; i<birdCount; i++) {
-        const b = birdStates[i];
+        const b = birdData[i];
         b.pos.add(b.vel);
-        if(Math.abs(b.pos.x) > 150) b.vel.x *= -1;
-        if(Math.abs(b.pos.z) > 150) b.vel.z *= -1;
+        if(Math.abs(b.pos.x) > 200) b.vel.x *= -1;
+        if(Math.abs(b.pos.z) > 200) b.vel.z *= -1;
         dummy.position.copy(b.pos);
         dummy.lookAt(b.pos.clone().add(b.vel));
         dummy.updateMatrix();
@@ -291,45 +296,46 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       }
       birds.instanceMatrix.needsUpdate = true;
 
-      // Camera drift
-      camera.position.x = Math.sin(time * 0.1) * 5;
-      camera.lookAt(0, 5, 0);
+      // Camera drift (Nature Documentary style)
+      camera.position.x = Math.sin(time * 0.15) * 8;
+      camera.position.z = 60 + Math.cos(time * 0.1) * 5;
+      camera.lookAt(0, 10, 0);
 
       composer.render();
       requestAnimationFrame(animate);
     };
     animate();
 
-    // --- GSAP TIMELINE ---
-    const tl = gsap.timeline({ delay: 1 });
-    
-    // Dissolve in
-    tl.fromTo(groundMat.uniforms.uBiolum, { value: 0 }, { value: 0.8, duration: 4, ease: "sine.inOut" });
+    // --- GSAP CINEMATIC SEQUENCE ---
+    const tl = gsap.timeline({ delay: 0.5 });
 
-    // Hero Text assembly
-    const chars = document.querySelectorAll('.hero-char');
-    chars.forEach((char) => {
-      const rect = char.getBoundingClientRect();
-      gsap.fromTo(char, 
-        { 
-          x: (Math.random() - 0.5) * window.innerWidth, 
-          y: (Math.random() - 0.5) * window.innerHeight, 
-          opacity: 0,
-          scale: 0.5,
-          rotation: Math.random() * 360
-        }, 
-        { 
-          x: 0, y: 0, opacity: 1, scale: 1, rotation: 0, 
-          duration: 2, ease: "back.out(2.2)", delay: 2 + Math.random() * 0.5 
-        }
-      );
-    });
+    // Assemble Hero Text
+    tl.fromTo(".hero-char", 
+      { 
+        opacity: 0, 
+        scale: 2, 
+        y: (i) => Math.sin(i) * 100, 
+        x: (i) => Math.cos(i) * 100,
+        filter: "blur(20px)" 
+      },
+      { 
+        opacity: 1, 
+        scale: 1, 
+        y: 0, 
+        x: 0, 
+        filter: "blur(0px)",
+        duration: 2.5, 
+        stagger: 0.08, 
+        ease: "back.out(1.8)" 
+      },
+      "+=1"
+    );
 
-    // Tagline mist-condensation
-    tl.fromTo(".tagline-word", 
-      { filter: "blur(8px)", opacity: 0, scale: 1.15 },
-      { filter: "blur(0px)", opacity: 1, scale: 1, duration: 1.5, stagger: 0.15, ease: "power2.out" },
-      "-=0.5"
+    // Condense Tagline from Mist
+    tl.fromTo(".tagline-word",
+      { filter: "blur(12px)", opacity: 0, scale: 1.2 },
+      { filter: "blur(0px)", opacity: 1, scale: 1, duration: 1.8, stagger: 0.15, ease: "power3.out" },
+      "-=1"
     );
 
     return () => {
@@ -341,7 +347,8 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const handleEnter = () => {
     gsap.to(".intro-overlay", { 
       opacity: 0, 
-      duration: 1.5, 
+      scale: 1.1,
+      duration: 1.8, 
       ease: "power4.inOut",
       onComplete: () => {
         setActive(false);
@@ -356,22 +363,25 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     <div className="fixed inset-0 z-[9999] bg-black overflow-hidden intro-overlay">
       <div ref={containerRef} className="absolute inset-0" />
       
-      {/* Custom Cursor */}
-      <div id="custom-cursor" className="hidden lg:block fixed w-3 h-3 bg-white rounded-full pointer-events-none z-[10000] mix-blend-difference" />
+      {/* Living Magnetic Cursor */}
+      <div id="custom-cursor" className="hidden lg:block fixed w-1.5 h-1.5 bg-white rounded-full pointer-events-none z-[10000] mix-blend-difference">
+        <div className="absolute inset-0 w-8 h-8 -translate-x-1/2 -translate-y-1/2 border border-white/20 rounded-full scale-100" />
+        <div className="absolute inset-0 w-14 h-14 -translate-x-1/2 -translate-y-1/2 border border-white/5 rounded-full scale-100" />
+      </div>
 
-      {/* Hero UI */}
+      {/* Hero Narrative UI */}
       <div ref={uiRef} className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-6">
-        <h1 className="flex gap-1 md:gap-4 perspective-[1000px] mb-6">
+        <h1 className="flex gap-1 md:gap-4 perspective-[1000px] mb-8">
           {"KrishiShield AI".split("").map((char, i) => (
-            <span key={i} className="hero-char inline-block font-headline text-5xl md:text-9xl text-white font-black tracking-tighter">
+            <span key={i} className="hero-char inline-block font-headline text-5xl md:text-9xl text-white font-black tracking-tighter mix-blend-overlay">
               {char === " " ? "\u00A0" : char}
             </span>
           ))}
         </h1>
 
-        <div className="flex gap-3 mb-16">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mb-20 max-w-2xl text-center">
           {"Where Every Field Becomes Intelligent".split(" ").map((word, i) => (
-            <span key={i} className="tagline-word font-body text-white/80 text-lg md:text-2xl font-light">
+            <span key={i} className="tagline-word font-body text-white/90 text-xl md:text-3xl font-light tracking-tight">
               {word}
             </span>
           ))}
@@ -379,40 +389,49 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
         <button 
           onClick={handleEnter}
-          className="pointer-events-auto group relative px-16 py-6 overflow-hidden transition-all active:scale-95"
+          className="pointer-events-auto group relative px-20 py-8 overflow-hidden transition-all active:scale-95"
         >
-          <svg className="absolute inset-0 w-full h-full">
-            <rect className="svg-border w-full h-full fill-none stroke-white/40 stroke-2" />
+          {/* Growing Vine Border SVG */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 60" preserveAspectRatio="none">
+            <rect className="vine-border w-full h-full fill-none stroke-primary/40 stroke-2" x="1" y="1" width="198" height="58" />
           </svg>
-          <span className="relative z-10 font-bold uppercase tracking-[0.4em] text-white flex items-center gap-4 group-hover:gap-8 transition-all">
-            Enter the Field <ArrowRight size={20} />
+          <span className="relative z-10 font-bold uppercase tracking-[0.5em] text-white flex items-center gap-6 group-hover:gap-10 transition-all text-sm">
+            Enter the Field <ArrowRight size={22} className="text-primary" />
           </span>
-          <div className="absolute inset-0 bg-white/10 -translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
+          <div className="absolute inset-0 bg-primary/10 -translate-x-full group-hover:translate-x-0 transition-transform duration-1000" />
         </button>
       </div>
 
-      {/* Controls */}
-      <div className="absolute bottom-12 right-12 flex gap-6 z-[10001]">
+      {/* Environmental Controls */}
+      <div className="absolute bottom-12 right-12 flex gap-8 z-[10001]">
         <button 
           onClick={() => setMuted(!muted)}
-          className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center text-white/40 hover:text-white transition-colors backdrop-blur-md"
+          className="w-14 h-14 rounded-full border border-white/10 flex items-center justify-center text-white/30 hover:text-white transition-all backdrop-blur-xl bg-white/5 hover:scale-110"
         >
-          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
 
       <style jsx global>{`
-        .svg-border {
-          stroke-dasharray: 1000;
-          stroke-dashoffset: 1000;
-          animation: draw 1.5s forwards 4s;
+        .vine-border {
+          stroke-dasharray: 600;
+          stroke-dashoffset: 600;
+          animation: vine-grow 2.5s forwards 4.5s;
         }
-        @keyframes draw { to { stroke-dashoffset: 0; } }
+        @keyframes vine-grow { 
+          to { stroke-dashoffset: 0; } 
+        }
         
         #custom-cursor {
-          transition: transform 0.06s cubic-bezier(0.23, 1, 0.32, 1);
+          transition: transform 0.08s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .hero-char {
+          text-shadow: 0 0 40px rgba(76, 175, 80, 0.4);
         }
       `}</style>
     </div>
   );
 }
+
+    
