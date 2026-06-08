@@ -29,7 +29,6 @@ export type MarketSignalOutput = z.infer<typeof MarketSignalOutputSchema>;
 
 const marketSignalPrompt = ai.definePrompt({
   name: 'marketSignalPrompt',
-  model: 'groq/llama-3.3-70b-versatile',
   input: {schema: MarketSignalInputSchema},
   output: {schema: MarketSignalOutputSchema},
   config: {
@@ -61,7 +60,7 @@ const marketSignalGeneratorFlow = ai.defineFlow(
       return output;
     } catch (error) {
       console.error('Error generating market signals:', error);
-      // Fallback signals
+      // Fallback signals in case of failure
       return [
         { icon_name: '⚠️', title: 'Data Unavailable', detail: 'Market signals could not be fetched.', sentiment: 'neutral' },
         { icon_name: '🔄', title: 'Refreshing Soon', detail: 'Please try again in a moment for updates.', sentiment: 'neutral' },
