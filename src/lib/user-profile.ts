@@ -16,13 +16,13 @@ export interface UserProfile {
 export const STORAGE_KEY = 'krishiProfile';
 
 export const DEFAULT_PROFILE: UserProfile = {
-  name: 'Ramesh Kumar',
-  city: 'Nasik',
+  name: 'Kisan Farmer',
+  city: 'Your City',
   state: 'Maharashtra',
   country: 'India',
   crops: ['tomato', 'onion'],
-  fieldSize: '1.2 hectares',
-  soilType: 'Red Laterite',
+  fieldSize: '1.0 hectares',
+  soilType: 'Loamy',
   irrigationType: 'Drip',
 };
 
@@ -58,12 +58,14 @@ export const PROMPT_TEMPLATES = {
   DISEASE: "Disease probability is {prob}% for {crop} in {city}, {state}. Humidity {h}%, Temp {t}°C, recent rainfall {mm}mm. Name the most likely pathogen, explain why conditions favour it, and give the earliest intervention step.",
   YIELD: "Projected yield is {yield}kg/acre vs regional average {avg}kg/acre for {crop} in {city}, {state}. Explain the yield gap cause in one sentence and give one corrective measure with expected recovery percentage.",
   RAINFALL: "Rainfall deficit is {deficit}mm this week for {crop} needing {need}mm in {city}, {state}. Give a precise irrigation recommendation — method, timing, and quantity — in 2 sentences.",
-  MARKET_FORECAST: "Forecast {crop} price trend for {city}, {state} market over next 6 months. Current price ₹{price}/kg. Give 3 key drivers and a price range prediction in 3 sentences."
+  MARKET_FORECAST: "Forecast {crop} price trend for {city}, {state} market over next 6 months. Current price ₹{price}/kg. Give 3 key drivers and a price range prediction in 3 sentences.",
+  INTELLIGENCE_FEED: "You are an agricultural intelligence officer. The user is {name}, a {crop} farmer in {city}, {state}. Generate 3 short intelligence briefings (max 40 words each) about market conditions, weather impact, and biosecurity."
 };
 
 export function buildPrompt(templateKey: keyof typeof PROMPT_TEMPLATES, profile: UserProfile, extras: any = {}) {
   let template = PROMPT_TEMPLATES[templateKey];
   return template
+    .replaceAll('{name}', profile.name)
     .replaceAll('{city}', profile.city)
     .replaceAll('{state}', profile.state)
     .replaceAll('{crop}', extras.crop || profile.crops[0] || 'wheat')
