@@ -13,13 +13,14 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
 
   useEffect(() => {
+    setTime(new Date());
     const interval = setInterval(() => setTime(new Date()), 1000);
     const loadAvatar = () => {
       if (typeof window !== 'undefined') {
@@ -102,9 +103,11 @@ export function AppShell({ children, activeTab, setActiveTab }: AppShellProps) {
           </div>
           
           <div className="hidden sm:block">
-            <span className="text-[13px] font-light text-white/40 font-code tabular-nums uppercase tracking-tight">
-              {time.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' })}
-            </span>
+            {time && (
+              <span className="text-[13px] font-light text-white/40 font-code tabular-nums uppercase tracking-tight">
+                {time.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · {time.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-4 relative">
