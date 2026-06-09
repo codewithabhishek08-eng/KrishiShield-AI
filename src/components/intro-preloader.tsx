@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { gsap } from 'gsap';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const noiseHelpers = `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -194,15 +195,14 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const leafClusterGeo = new THREE.SphereGeometry(0.4, 5, 4);
     leafClusterGeo.translate(0, 1.2, 0);
     
-    // Merge geometries for instanced mesh
-    const treeGeo = trunkGeo.clone();
-    treeGeo.mergeGeometries([trunkGeo, leafClusterGeo]);
+    // Merge geometries for instanced mesh correctly using BufferGeometryUtils
+    const treeGeo = BufferGeometryUtils.mergeGeometries([trunkGeo, leafClusterGeo]);
     
     const treeMat = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 } },
       vertexShader: `
-        varying vec3 vColor;
         varying float vY;
+        uniform float uTime;
         void main() {
           vY = position.y;
           vec4 worldPos = instanceMatrix * vec4(position, 1.0);
@@ -267,7 +267,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     });
     const bambooMesh = new THREE.InstancedMesh(bambooGeo, bambooMat, 400);
     let bIdx = 0;
-    for (let c = 0; i < 20; i++) {
+    for (let i = 0; i < 20; i++) {
       const cx = (Math.random() - 0.5) * 100;
       const cz = (Math.random() - 0.5) * 100 - 50;
       for (let j = 0; j < 20; j++) {
