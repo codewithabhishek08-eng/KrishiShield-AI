@@ -7,7 +7,7 @@ import { gsap } from 'gsap';
 
 /**
  * KrishiShield AI — Ancient Indian Monsoon Valley Landing
- * Step 2: Terraced Rice Paddies & Water Surface
+ * Step 3: 40,000 Instanced Rice Shoots with Wind Dynamics
  */
 
 export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
@@ -45,7 +45,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
     // 5. TERRAIN & WATER SHADERS
     
-    // Noise & fBm Helpers for GLSL
     const noiseHelpers = `
       vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
       vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -82,11 +81,8 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       }
     `;
 
-    // Terrain Material
     const terrainMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-      },
+      uniforms: { uTime: { value: 0 } },
       vertexShader: `
         varying vec2 vUv;
         varying float vHeight;
@@ -104,7 +100,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         varying vec2 vUv;
         varying float vHeight;
         void main() {
-          vec3 soil = vec3(0.17, 0.09, 0.06); // #2C1810
+          vec3 soil = vec3(0.17, 0.09, 0.06);
           vec3 grass = vec3(0.18, 0.35, 0.18);
           vec3 color = mix(soil, grass, smoothstep(-2.0, 5.0, vHeight));
           gl_FragColor = vec4(color, 1.0);
@@ -112,13 +108,11 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       `,
     });
 
-    // Base Terrain
-    const terrainGeo = new THREE.PlaneGeometry(200, 200, 256, 256);
+    const terrainGeo = new THREE.PlaneGeometry(200, 200, 128, 128);
     terrainGeo.rotateX(-Math.PI / 2);
     const terrain = new THREE.Mesh(terrainGeo, terrainMat);
     scene.add(terrain);
 
-    // Water Material (Gerstner Waves)
     const waterMat = new THREE.ShaderMaterial({
       transparent: true,
       uniforms: {
@@ -131,12 +125,8 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         void main() {
           vUv = uv;
           vec3 pos = position;
-          
-          // Simplified Gerstner-like displacement
-          float angle = pos.x * 2.0 + pos.z * 1.5 + uTime * 2.0;
-          pos.y += sin(angle) * 0.008;
-          pos.y += cos(pos.x * 3.0 + uTime) * 0.005;
-          
+          float angle = pos.x * 2.0 + pos.z * 1.5 + uTime * 1.5;
+          pos.y += sin(angle) * 0.01;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
@@ -145,43 +135,118 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         uniform vec3 uColor;
         uniform float uTime;
         void main() {
-          float shimmer = sin(vUv.x * 20.0 + uTime) * 0.05;
-          gl_FragColor = vec4(uColor + shimmer, 0.85);
+          float shimmer = sin(vUv.x * 20.0 + uTime) * 0.03;
+          gl_FragColor = vec4(uColor + shimmer, 0.8);
         }
       `
     });
 
-    // Create Terraces
+    // 6. RICE SHOOTS (INSTANCED)
+    const shootCount = 40000;
     const terraceCount = 5;
+    const shootsPerTerrace = shootCount / terraceCount;
+    
+    const shootGeo = new THREE.CylinderGeometry(0.005, 0.018, 0.3, 3, 4);
+    shootGeo.translate(0, 0.15, 0); // Pivot at bottom
+
+    const shootMat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide,
+      transparent: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0x81C784) }
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying float vY;
+        uniform float uTime;
+        
+        void main() {
+          vUv = uv;
+          vY = position.y;
+          
+          // Get world position of the instance
+          vec4 worldInstancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          
+          // Wind sway logic
+          float wind = sin(uTime * 1.8 + worldInstancePos.x * 0.5 + worldInstancePos.z * 0.4) * 0.06;
+          wind *= (position.y + 0.15) / 0.3; // Sway increases with height
+          
+          vec3 pos = position;
+          pos.x += wind;
+          pos.z += wind * 0.5;
+          
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying float vY;
+        uniform vec3 uColor;
+        
+        void main() {
+          // Subsurface scattering simulation
+          float grad = smoothstep(-0.15, 0.15, vY);
+          vec3 baseColor = mix(uColor * 0.5, uColor, grad);
+          gl_FragColor = vec4(baseColor, 0.9);
+        }
+      `
+    });
+
+    const riceMesh = new THREE.InstancedMesh(shootGeo, shootMat, shootCount);
+    const dummy = new THREE.Object3D();
     const terraceGeo = new THREE.PlaneGeometry(30, 40);
     terraceGeo.rotateX(-Math.PI / 2);
 
+    let currentIdx = 0;
     for (let i = 0; i < terraceCount; i++) {
+      const paddyY = 3 - i * 1.5;
+      const paddyZ = -20 - i * 10;
+      
       const terrace = new THREE.Mesh(terraceGeo, waterMat);
-      terrace.position.set(0, 3 - i * 1.5, -20 - i * 10);
+      terrace.position.set(0, paddyY, paddyZ);
       scene.add(terrace);
 
-      // Earthen Bunds (Borders)
       const bundGeo = new THREE.BoxGeometry(32, 0.5, 42);
       const bundMat = new THREE.MeshStandardMaterial({ color: 0x2C1810 });
       const bund = new THREE.Mesh(bundGeo, bundMat);
-      bund.position.set(0, 2.8 - i * 1.5, -20 - i * 10);
+      bund.position.set(0, paddyY - 0.2, paddyZ);
       scene.add(bund);
-    }
 
-    // 6. RENDER LOOP
+      // Place shoots for this terrace
+      const gridX = 100; // rows
+      const gridZ = 80; // cols
+      const spacing = 0.25;
+
+      for (let s = 0; s < shootsPerTerrace; s++) {
+        const row = Math.floor(s / gridZ);
+        const col = s % gridZ;
+        
+        const x = (col - gridZ / 2) * spacing + (Math.random() - 0.5) * 0.1;
+        const z = (row - gridX / 4) * spacing + (Math.random() - 0.5) * 0.1;
+        
+        dummy.position.set(x, paddyY, paddyZ + z);
+        dummy.rotation.y = Math.random() * Math.PI;
+        dummy.updateMatrix();
+        riceMesh.setMatrixAt(currentIdx++, dummy.matrix);
+      }
+    }
+    scene.add(riceMesh);
+
+    // 7. RENDER LOOP
     let animationFrameId: number;
     const animate = (time: number) => {
       const t = time * 0.001;
       terrainMat.uniforms.uTime.value = t;
       waterMat.uniforms.uTime.value = t;
+      shootMat.uniforms.uTime.value = t;
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);
     };
     animate(0);
 
-    // 7. WINDOW RESIZE HANDLER
+    // 8. WINDOW RESIZE HANDLER
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -189,7 +254,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     };
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
