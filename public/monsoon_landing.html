@@ -3,904 +3,337 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KrishiShield AI | मानसून आया।</title>
+    <title>KrishiShield AI | Nature Friendly Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@1,900&family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,100..900;1,100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
     <style>
         :root {
-            --primary: #81C784;
-            --primary-dark: #1B5E20;
-            --bg: #050F08;
-            --text: #E8F5E9;
+            --primary: #4CAF50;
+            --primary-dark: #2E7D32;
+            --text-main: #E8F5E9;
+            --glass: rgba(15, 30, 15, 0.6);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: 'Inter', sans-serif; 
-            overflow-x: hidden;
-            cursor: none;
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050A05;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
         }
 
-        canvas { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            z-index: 0; 
-            outline: none;
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            pointer-events: none;
         }
 
-        #ui-layer {
+        /* --- UI OVERLAY --- */
+        #ui-root {
             position: relative;
             z-index: 10;
-            pointer-events: none;
             width: 100%;
-        }
-
-        .section {
             height: 100vh;
-            width: 100%;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 0 10%;
+            text-align: center;
+            background: radial-gradient(circle at center, transparent 0%, rgba(5,10,5,0.4) 100%);
         }
 
-        .hero-content {
-            text-align: center;
-            max-width: 900px;
-            opacity: 0;
-            transform: translateY(30px);
+        .hero-container {
+            max-width: 800px;
+            padding: 20px;
+            animation: fadeIn 2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .hindi-line {
             font-family: 'Anybody', sans-serif;
-            font-size: clamp(1.2rem, 3vw, 1.8rem);
-            color: rgba(200, 230, 210, 0.7);
-            letter-spacing: 0.08em;
+            font-weight: 900;
+            font-style: italic;
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
             margin-bottom: 0.5rem;
+            opacity: 0.8;
         }
 
         .main-title {
             font-family: 'Anybody', sans-serif;
-            font-size: clamp(3.5rem, 9vw, 7.5rem);
+            font-weight: 900;
+            font-style: italic;
+            font-size: clamp(3rem, 10vw, 7rem);
             line-height: 0.9;
             margin-bottom: 1.5rem;
-            background: linear-gradient(to right, #e0f2f1, #81c784, #e0f2f1);
-            background-size: 200% auto;
+            background: linear-gradient(to bottom, #FFFFFF, #A5D6A7);
             -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            animation: textShimmer 5s linear infinite;
-            filter: drop-shadow(0 0 30px rgba(129, 199, 132, 0.2));
-        }
-
-        @keyframes textShimmer {
-            to { background-position: 200% center; }
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
 
         .tagline {
-            font-size: clamp(1rem, 2vw, 1.4rem);
+            font-size: clamp(1rem, 2.5vw, 1.4rem);
             font-weight: 300;
-            color: rgba(200, 230, 215, 0.65);
+            opacity: 0.7;
             max-width: 600px;
-            margin: 0 auto 2.5rem;
+            margin: 0 auto 3rem;
+            line-height: 1.6;
         }
 
-        .cta-group {
+        .btn-group {
             display: flex;
-            gap: 1rem;
+            gap: 20px;
             justify-content: center;
-            pointer-events: auto;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 16px 42px;
-            border-radius: 50px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
-            font-size: 16px;
+            padding: 18px 48px;
+            border-radius: 100px;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            text-decoration: none;
+            font-size: 14px;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #1B5E20, #2E7D32);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: white;
-            border: 1px solid rgba(76, 175, 80, 0.4);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: none;
+            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 0 12px rgba(76, 175, 80, 0);
-            animation: btnPulse 1.2s infinite;
-        }
-
-        @keyframes btnPulse {
-            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
-            70% { box-shadow: 0 0 0 15px rgba(76, 175, 80, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 40px rgba(76, 175, 80, 0.5);
         }
 
         .btn-outline {
-            background: transparent;
-            color: rgba(200, 230, 215, 0.7);
-            border: 1px solid rgba(200, 230, 215, 0.25);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
         }
 
         .btn-outline:hover {
-            border-color: rgba(200, 230, 215, 0.8);
-            color: white;
+            background: rgba(255,255,255,0.1);
+            border-color: var(--primary);
         }
 
-        /* Floating Cards */
-        .glass-card {
-            background: rgba(10, 30, 15, 0.6);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(129, 199, 132, 0.15);
-            border-radius: 24px;
-            padding: 2.5rem;
-            max-width: 450px;
-            opacity: 0;
-            transform: translateX(-50px);
-            pointer-events: auto;
-        }
-
-        .glass-card.right {
-            transform: translateX(50px);
-        }
-
-        /* Rain Counter */
-        #rain-counter {
+        /* --- PERFORMANCE INDICATOR --- */
+        .perf-hint {
             position: fixed;
             bottom: 30px;
             left: 30px;
-            font-size: 12px;
-            color: rgba(200, 230, 215, 0.4);
-            font-weight: 300;
-            z-index: 20;
-        }
-
-        /* Custom Cursor */
-        #cursor-dot {
-            width: 8px;
-            height: 8px;
-            background: rgba(180, 230, 200, 0.9);
-            position: fixed;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 1000;
-        }
-        #cursor-ring {
-            width: 32px;
-            height: 32px;
-            border: 1.5px solid rgba(150, 210, 180, 0.4);
-            position: fixed;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 1000;
-            transition: width 0.3s, height 0.3s, border-color 0.3s;
-        }
-
-        /* Sound Toggle */
-        #sound-toggle {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 30px;
-            cursor: pointer;
-            z-index: 100;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            pointer-events: auto;
-        }
-
-        .nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 25px 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-            transition: background 0.5s;
-        }
-
-        .logo {
-            font-family: 'Anybody', sans-serif;
-            font-weight: 900;
-            font-style: italic;
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: white;
-        }
-
-        .logo svg { width: 14px; fill: var(--primary); }
-
-        .nav-links {
-            display: flex;
-            gap: 2.5rem;
-        }
-
-        .nav-links a {
-            color: rgba(200, 230, 215, 0.6);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            transition: color 0.3s;
-        }
-
-        .nav-links a:hover { color: white; }
-
-        @media (max-width: 768px) {
-            .nav-links { display: none; }
-            .cta-group { flex-direction: column; width: 100%; }
+            letter-spacing: 0.2em;
+            opacity: 0.3;
+            font-weight: 900;
         }
     </style>
 </head>
 <body>
-    <div id="cursor-dot"></div>
-    <div id="cursor-ring"></div>
 
-    <nav class="nav" id="main-nav">
-        <div class="logo">
-            KrishiShield 
-            <svg viewBox="0 0 24 24"><path d="M12 21.5c-4.4 0-8-3.6-8-8 0-5.4 7.7-12.4 8-12.7.1-.1.2-.1.3-.1.1 0 .2 0 .3.1.3.3 8 7.3 8 12.7 0 4.4-3.6 8-8 8z"/></svg>
+    <div id="ui-root">
+        <div class="hero-container">
+            <div class="hindi-line">प्रकृति और प्रगति।</div>
+            <h1 class="main-title">KrishiShield AI</h1>
+            <p class="tagline">The intelligence of nature, amplified by technology. Empowering farmers with precision and peace of mind.</p>
+            
+            <div class="btn-group">
+                <a href="/dashboard" class="btn btn-primary">Enter Dashboard</a>
+                <a href="#" class="btn btn-outline">Explore Mission</a>
+            </div>
         </div>
-        <div class="nav-links">
-            <a href="#forecast">Forecast</a>
-            <a href="#satellite">Satellite</a>
-            <a href="#finance">Finance</a>
-            <a href="/dashboard" style="border: 1px solid rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 20px;">Sign In</a>
-        </div>
-    </nav>
-
-    <div id="rain-counter">☁ <span id="mm-value">847</span>mm this season · Nasik district</div>
-
-    <button id="sound-toggle"><span>🔇</span> SOUND OFF</button>
-
-    <div id="ui-layer">
-        <section class="section">
-            <div class="hero-content" id="hero-main">
-                <div class="hindi-line">मानसून आया।</div>
-                <h1 class="main-title">KrishiShield AI</h1>
-                <p class="tagline">Turn every raindrop into revenue.</p>
-                <div class="cta-group">
-                    <a href="/dashboard" class="btn btn-primary">Enter KrishiShield</a>
-                    <a href="#forecast" class="btn btn-outline" id="btn-scroll">See How It Works</a>
-                </div>
-            </div>
-        </section>
-
-        <section class="section" id="forecast">
-            <div class="glass-card">
-                <h3 style="color:var(--primary); margin-bottom: 1rem; font-family: 'Anybody';">Read the rain before it falls.</h3>
-                <p style="font-size: 14px; line-height: 1.6; margin-bottom: 1.5rem;">Our AI predicted this monsoon's impact on yields 4 months early. Secure your harvest value with precision price forecasting.</p>
-                <div style="height: 120px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 11px; opacity: 0.5;">
-                    [AI PRICE FORECAST WIDGET]
-                </div>
-            </div>
-        </section>
-
-        <section class="section" id="satellite">
-            <div class="glass-card right">
-                <h3 style="color:var(--primary); margin-bottom: 1rem; font-family: 'Anybody';">Your field. From 600km up.</h3>
-                <p style="font-size: 14px; line-height: 1.6; margin-bottom: 1.5rem;">Sentinel-2 scans your field every 5 days. We translate pixels into action, identifying moisture stress before the naked eye sees it.</p>
-                <div style="display: flex; gap: 8px;">
-                    <div style="width: 33%; height: 6px; background: #FF5252; border-radius: 3px;"></div>
-                    <div style="width: 33%; height: 6px; background: #FFD740; border-radius: 3px;"></div>
-                    <div style="width: 33%; height: 6px; background: #81C784; border-radius: 3px;"></div>
-                </div>
-            </div>
-        </section>
-
-        <section class="section" id="finance">
-            <div class="hero-content" style="opacity: 1; transform: none; text-align: left;">
-                <div class="glass-card" style="max-width: 600px;">
-                    <h3 style="color:var(--primary); margin-bottom: 1rem; font-family: 'Anybody';">Rain falls on every farm. Not every farm survives.</h3>
-                    <p style="font-size: 14px; line-height: 1.6; margin-bottom: 2rem;">Farmers without KrishiShield lost 34% income last monsoon season. Don't be a statistic.</p>
-                    <div style="space-y: 1.5rem;">
-                        <div style="margin-bottom: 1rem;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size: 12px;"><span>Without KrishiShield</span><span>₹1,40,000</span></div>
-                            <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden;">
-                                <div style="width: 65%; height: 100%; background: #FF5252;"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div style="display:flex; justify-content:space-between; margin-bottom: 6px; font-size: 12px; color: var(--primary);"><span>With KrishiShield</span><span>₹2,14,000</span></div>
-                            <div style="height: 12px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden;">
-                                <div style="width: 100%; height: 100%; background: var(--primary);"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="section">
-            <div class="hero-content" style="opacity: 1; transform: none;">
-                <p style="font-style: italic; font-weight: 300; font-size: 1.3rem; margin-bottom: 3rem; color: rgba(240,255,230,0.8);">"The rain gives life. We make sure it gives profit too."</p>
-                <a href="/dashboard" class="btn btn-primary" style="padding: 20px 60px; font-size: 18px;">Start your monsoon right</a>
-                <p style="margin-top: 1.5rem; font-size: 13px; color: rgba(200,230,215,0.4);">Join 47 farmers who protected ₹2.4 crore in crops this season.</p>
-            </div>
-        </section>
     </div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
-            "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.2/index.js",
-            "gsap/ScrollTrigger": "https://cdn.jsdelivr.net/npm/gsap@3.12.2/ScrollTrigger.js",
-            "postprocessing": "https://cdn.jsdelivr.net/npm/postprocessing@6.33.2/build/postprocessing.esm.js"
-        }
-    }
-    </script>
+    <div class="perf-hint">Nature-Engine V2.0 // Active</div>
 
     <script type="module">
         import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { gsap } from 'gsap';
-        import { ScrollTrigger } from 'gsap/ScrollTrigger.js';
-        import * as PP from 'postprocessing';
 
-        gsap.registerPlugin(ScrollTrigger);
-
-        // --- THE WORLD: CORE SETUP ---
-        const canvas = document.createElement('canvas');
-        document.body.appendChild(canvas);
-
-        const renderer = new THREE.WebGLRenderer({ 
-            canvas, 
-            antialias: true, 
-            logarithmicDepthBuffer: true,
-            powerPreference: 'high-performance'
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-
+        // --- SCENE SETUP ---
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x0D1A10, 0.018);
+        scene.background = new THREE.Color(0x050A05);
+        scene.fog = new THREE.FogExp2(0x050A05, 0.04);
 
-        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
-        // Positioned for Shot 1
-        camera.position.set(0, 2.4, 8);
-        camera.lookAt(0, 1.8, 0);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 15);
+        camera.lookAt(0, 2, 0);
 
-        // --- VFX UNIFORMS ---
-        const uniforms = {
-            uTime: { value: 0 },
-            uRainIntensity: { value: 0.2 },
-            uLightningBrightness: { value: 0 },
-            uLightEmissive: { value: 0 }
-        };
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
 
-        // --- SKY: MONSOON STORM SHADER ---
-        const skyGeo = new THREE.SphereGeometry(600, 64, 64);
-        const skyMat = new THREE.ShaderMaterial({
-            side: THREE.BackSide,
-            uniforms: uniforms,
-            vertexShader: `
-                varying vec2 vUv;
-                varying vec3 vWorldPos;
-                void main() {
-                    vUv = uv;
-                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                varying vec3 vWorldPos;
-                uniform float uTime;
-                uniform float uLightningBrightness;
+        // --- LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
 
-                float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-                float noise(vec2 p) {
-                    vec2 i = floor(p); vec2 f = fract(p);
-                    vec2 u = f * f * (3.0 - 2.0 * f);
-                    return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
-                               mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), u.y);
-                }
-                float fbm(vec2 p) {
-                    float v = 0.0; float a = 0.5;
-                    for (int i = 0; i < 4; i++) {
-                        v += a * noise(p); p *= 2.0; a *= 0.5;
-                    }
-                    return v;
-                }
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2);
+        sunLight.position.set(5, 10, 7.5);
+        scene.add(sunLight);
 
-                void main() {
-                    vec3 zenith = vec3(0.05, 0.05, 0.1); // #0D0D1A
-                    vec3 horizon = vec3(0.04, 0.12, 0.08); // #0A1F14
-                    vec3 color = mix(horizon, zenith, vUv.y);
+        // --- GRASS SYSTEM ---
+        const GRASS_COUNT = 15000;
+        const grassGeo = new THREE.PlaneGeometry(0.1, 1.2, 1, 4);
+        grassGeo.translate(0, 0.6, 0); // Move origin to base
 
-                    // Storm clouds
-                    float n1 = fbm(vUv * 1.2 + vec2(uTime * 0.006, 0.0));
-                    if(n1 > 0.52) {
-                        color = mix(color, vec3(0.1, 0.1, 0.16), (n1 - 0.52) * 3.0);
-                    }
-
-                    float n2 = fbm(vUv * 3.5 + vec2(uTime * 0.018, uTime * 0.004));
-                    if(n2 > 0.58) {
-                        color = mix(color, vec3(0.16, 0.18, 0.25), 0.3);
-                    }
-
-                    // Moon
-                    vec2 moonPos = vec2(0.72, 0.78);
-                    float dist = length(vUv - moonPos);
-                    float moon = smoothstep(0.04, 0.02, dist);
-                    color += vec3(0.86, 0.9, 0.82) * moon * 0.7 * (1.0 - clamp(n1 * 2.0, 0.0, 0.8));
-                    
-                    // Halo
-                    color += vec3(0.6, 0.8, 0.6) * smoothstep(0.18, 0.06, dist) * 0.15;
-
-                    // Lightning
-                    color = mix(color, vec3(0.7, 0.85, 1.0), uLightningBrightness * 0.35);
-
-                    gl_FragColor = vec4(color, 1.0);
-                }
-            `
-        });
-        const sky = new THREE.Mesh(skyGeo, skyMat);
-        scene.add(sky);
-
-        // --- TERRAIN: FLOODED RICE PADDY ---
-        const terrainGeo = new THREE.PlaneGeometry(300, 300, 200, 200);
-        terrainGeo.rotateX(-Math.PI / 2);
-        const terrainMat = new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: `
-                varying vec2 vUv;
-                varying float vHeight;
-                float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-                float noise(vec2 p) {
-                    vec2 i = floor(p); vec2 f = fract(p);
-                    vec2 u = f * f * (3.0 - 2.0 * f);
-                    return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
-                               mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), u.y);
-                }
-                void main() {
-                    vUv = uv;
-                    float h = noise(uv * 0.8) * 1.2 + noise(uv * 2.4) * 0.4;
-                    vHeight = h;
-                    vec3 pos = position;
-                    pos.y += h;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                varying float vHeight;
-                uniform float uLightningBrightness;
-                void main() {
-                    vec3 flooded = vec3(0.04, 0.12, 0.06); // #0A2010
-                    vec3 wet = vec3(0.1, 0.18, 0.08); // #1A3015
-                    vec3 bund = vec3(0.16, 0.25, 0.12); // #2A4020
-                    vec3 color = mix(flooded, wet, smoothstep(0.0, 0.6, vHeight));
-                    color = mix(color, bund, smoothstep(0.6, 1.2, vHeight));
-                    color += uLightningBrightness * 0.1;
-                    gl_FragColor = vec4(color, 1.0);
-                }
-            `
-        });
-        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-        scene.add(terrain);
-
-        // --- WATER: THE MIRROR ---
-        const waterCanvas = document.createElement('canvas');
-        waterCanvas.width = waterCanvas.height = 512;
-        const waterCtx = waterCanvas.getContext('2d');
-        const waterTex = new THREE.CanvasTexture(waterCanvas);
-
-        const waterGeo = new THREE.PlaneGeometry(300, 300);
-        waterGeo.rotateX(-Math.PI / 2);
-        
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
-        const cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
-
-        const waterMat = new THREE.ShaderMaterial({
+        const grassMat = new THREE.ShaderMaterial({
             uniforms: {
-                ...uniforms,
-                uRippleMap: { value: waterTex },
-                uEnvMap: { value: cubeRenderTarget.texture },
-                uCameraPos: { value: new THREE.Vector3() }
+                uTime: { value: 0 },
+                uColorLow: { value: new THREE.Color(0x1B5E20) },
+                uColorHigh: { value: new THREE.Color(0x81C784) }
             },
-            transparent: true,
             vertexShader: `
                 varying vec2 vUv;
-                varying vec3 vWorldPos;
+                varying float vHeightFactor;
+                uniform float uTime;
+                
                 void main() {
                     vUv = uv;
-                    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vHeightFactor = position.y;
+                    
+                    vec3 pos = position;
+                    
+                    // Gentle swaying motion
+                    float wave = sin(uTime * 1.5 + modelMatrix[3][0] * 0.5 + modelMatrix[3][2] * 0.3) * 0.2;
+                    wave += sin(uTime * 2.8 + modelMatrix[3][0] * 0.1) * 0.05;
+                    
+                    pos.x += wave * vHeightFactor;
+                    pos.z += wave * 0.5 * vHeightFactor;
+
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
                 }
             `,
             fragmentShader: `
                 varying vec2 vUv;
-                varying vec3 vWorldPos;
-                uniform sampler2D uRippleMap;
-                uniform samplerCube uEnvMap;
-                uniform vec3 uCameraPos;
-                uniform float uLightningBrightness;
-                uniform float uTime;
-
-                void main() {
-                    vec3 baseColor = vec3(0.02, 0.06, 0.04); // #060F0A
-                    vec3 viewDir = normalize(vWorldPos - uCameraPos);
-                    
-                    // Ripple disturbance
-                    vec4 ripple = texture2D(uRippleMap, vUv);
-                    vec3 normal = normalize(vec3(ripple.r * 2.0 - 1.0, 1.0, ripple.g * 2.0 - 1.0));
-                    
-                    vec3 reflDir = reflect(viewDir, normal);
-                    vec3 reflection = textureCube(uEnvMap, reflDir).rgb;
-                    
-                    float fresnel = pow(1.0 - max(dot(-viewDir, normal), 0.0), 5.0);
-                    float reflectStrength = mix(0.3, 0.9, fresnel);
-                    
-                    vec3 final = mix(baseColor, reflection, reflectStrength * 0.55);
-                    final += uLightningBrightness * 0.6;
-                    
-                    gl_FragColor = vec4(final, 0.9);
-                }
-            `
-        });
-        const water = new THREE.Mesh(waterGeo, waterMat);
-        water.position.y = 0.45; // Just above terrain min
-        scene.add(water);
-
-        // --- RICE PLANTS: INSTANCED ECOSYSTEM ---
-        const plantCount = 60000;
-        const plantGeo = new THREE.BufferGeometry();
-        const pts = [];
-        for(let i=0; i<8; i++) {
-            float y = i * 0.1;
-            pts.push(new THREE.Vector3(Math.sin(y*2.0)*0.02, y, 0));
-        }
-        const curve = new THREE.CatmullRomCurve3(pts);
-        const tubeGeo = new THREE.TubeGeometry(curve, 8, 0.008, 3, false);
-        
-        const plantMat = new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: `
-                attribute vec3 instancePosition;
                 varying float vHeightFactor;
-                varying vec3 vWorldPos;
-                uniform float uTime;
-                uniform float uRainIntensity;
+                uniform vec3 uColorLow;
+                uniform vec3 uColorHigh;
 
                 void main() {
-                    vHeightFactor = position.y / 0.8;
-                    vec3 pos = position;
-                    
-                    // Wind + Rain shiver
-                    float wind = sin(uTime * 1.3 + instancePosition.x * 0.35 + instancePosition.z * 0.28) * 0.15;
-                    float shiver = sin(uTime * 8.1 + instancePosition.x * 0.2) * 0.03 * uRainIntensity;
-                    
-                    pos.x += (wind + shiver) * pow(vHeightFactor, 2.0);
-                    
-                    vWorldPos = instancePosition + pos;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(vWorldPos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying float vHeightFactor;
-                uniform float uLightEmissive;
-                void main() {
-                    vec3 base = vec3(0.1, 0.25, 0.12); // #1A4020
-                    vec3 tip = vec3(0.16, 0.38, 0.18); // #2A6030
-                    vec3 color = mix(base, tip, vHeightFactor);
-                    color += uLightEmissive * vec3(0.4, 0.8, 0.3);
+                    vec3 color = mix(uColorLow, uColorHigh, vHeightFactor);
                     gl_FragColor = vec4(color, 1.0);
                 }
-            `
+            `,
+            side: THREE.DoubleSide
         });
 
-        const instancedPlants = new THREE.InstancedMesh(tubeGeo, plantMat, plantCount);
+        const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, GRASS_COUNT);
         const dummy = new THREE.Object3D();
-        for(let i=0; i<plantCount; i++) {
-            let x = (Math.random() - 0.5) * 280;
-            let z = (Math.random() - 0.5) * 280;
-            // Check if on bund via noise (simplified)
-            dummy.position.set(x, 0.3, z);
-            dummy.scale.setScalar(0.8 + Math.random() * 0.4);
+
+        for (let i = 0; i < GRASS_COUNT; i++) {
+            const x = (Math.random() - 0.5) * 60;
+            const z = (Math.random() - 0.5) * 60;
+            
+            // Create some rolling hills logic
+            const y = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2;
+            
+            dummy.position.set(x, y, z);
             dummy.rotation.y = Math.random() * Math.PI;
+            dummy.scale.setScalar(0.8 + Math.random() * 0.5);
             dummy.updateMatrix();
-            instancedPlants.setMatrixAt(i, dummy.matrix);
+            grassMesh.setMatrixAt(i, dummy.matrix);
         }
-        scene.add(instancedPlants);
+        scene.add(grassMesh);
 
-        // --- RAIN SYSTEM ---
-        const rainCount = 18000;
-        const rainGeo = new THREE.BufferGeometry();
-        const rainPositions = new Float32Array(rainCount * 6); // Line segments (2 pts each)
-        const rainVelocities = new Float32Array(rainCount);
+        // --- POLLEN PARTICLES ---
+        const POLLEN_COUNT = 800;
+        const pollenGeo = new THREE.BufferGeometry();
+        const pollenPos = new Float32Array(POLLEN_COUNT * 3);
+        for(let i=0; i<POLLEN_COUNT*3; i+=3) {
+            pollenPos[i] = (Math.random() - 0.5) * 50;
+            pollenPos[i+1] = Math.random() * 20;
+            pollenPos[i+2] = (Math.random() - 0.5) * 50;
+        }
+        pollenGeo.setAttribute('position', new THREE.BufferAttribute(pollenPos, 3));
+        const pollenMat = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.08,
+            transparent: true,
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending
+        });
+        const pollenPoints = new THREE.Points(pollenGeo, pollenMat);
+        scene.add(pollenPoints);
+
+        // --- TERRAIN ---
+        const groundGeo = new THREE.PlaneGeometry(100, 100, 100, 100);
+        groundGeo.rotateX(-Math.PI / 2);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x050F05, roughness: 1 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
         
-        for(let i=0; i<rainCount; i++) {
-            let x = (Math.random() - 0.5) * 120;
-            let y = Math.random() * 60;
-            let z = (Math.random() - 0.5) * 120;
-            rainPositions[i*6] = x; rainPositions[i*6+1] = y; rainPositions[i*6+2] = z;
-            rainPositions[i*6+3] = x - 0.15; rainPositions[i*6+4] = y - 1.2; rainPositions[i*6+5] = z;
-            rainVelocities[i] = 0.4 + Math.random() * 0.2;
+        // Match hills with grass
+        const posAttr = groundGeo.getAttribute('position');
+        for (let i = 0; i < posAttr.count; i++) {
+            const px = posAttr.getX(i);
+            const pz = posAttr.getZ(i);
+            posAttr.setY(i, Math.sin(px * 0.1) * Math.cos(pz * 0.1) * 2 - 0.2);
         }
-        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-        const rainMat = new THREE.LineBasicMaterial({ color: 0xA0D0E6, transparent: true, opacity: 0.35 });
-        const rainLines = new THREE.LineSegments(rainGeo, rainMat);
-        scene.add(rainLines);
-
-        // --- LIGHTNING SYSTEM ---
-        let currentLightning = null;
-        function generateLightning(start, end, offset, depth) {
-            if (depth === 0) return [start, end];
-            const mid = start.clone().lerp(end, 0.5).add(new THREE.Vector3((Math.random()-0.5)*offset, (Math.random()-0.5)*offset, (Math.random()-0.5)*offset));
-            let pts = [...generateLightning(start, mid, offset*0.55, depth-1)];
-            if(Math.random() < 0.4 && depth > 2) {
-                const branch = mid.clone().add(new THREE.Vector3((Math.random()-0.5)*offset*2, -offset, (Math.random()-0.5)*offset*2));
-                pts = [...pts, ...generateLightning(mid, branch, offset*0.5, depth-2)];
-            }
-            return [...pts, ...generateLightning(mid, end, offset*0.55, depth-1)];
-        }
-
-        function triggerLightning() {
-            if(currentLightning) scene.remove(currentLightning);
-            const start = new THREE.Vector3((Math.random()-0.5)*200, 100, (Math.random()-0.5)*200);
-            const end = new THREE.Vector3((Math.random()-0.5)*200, 0, (Math.random()-0.5)*200);
-            const pts = generateLightning(start, end, 20, 6);
-            const geo = new THREE.BufferGeometry().setFromPoints(pts);
-            const mat = new THREE.LineBasicMaterial({ color: 0xC0E8FF, transparent: true });
-            currentLightning = new THREE.LineSegments(geo, mat);
-            scene.add(currentLightning);
-
-            const flash = gsap.timeline();
-            flash.to(uniforms.uLightningBrightness, { value: 1.0, duration: 0.05 });
-            flash.to(uniforms.uLightEmissive, { value: 0.8, duration: 0.05 }, 0);
-            flash.to(uniforms.uLightningBrightness, { value: 0, duration: 0.1, delay: 0.05 });
-            flash.to(uniforms.uLightEmissive, { value: 0, duration: 0.1 }, 0.1);
-            flash.to(uniforms.uLightningBrightness, { value: 0.6, duration: 0.05, delay: 0.1 });
-            flash.to(uniforms.uLightningBrightness, { value: 0, duration: 0.2, delay: 0.15, onComplete: () => scene.remove(currentLightning) });
-            
-            // Audio Trigger
-            if(audioStarted) playThunder();
-        }
-
-        // --- AUDIO SYSTEM (PURE SYNTHESIS) ---
-        let audioCtx, masterGain, rainNode, thunderNode;
-        let audioStarted = false;
-
-        function initAudio() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            masterGain = audioCtx.createGain();
-            masterGain.connect(audioCtx.destination);
-            masterGain.gain.value = 0.5;
-
-            // Rain Hiss
-            const bufferSize = 2 * audioCtx.sampleRate;
-            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
-
-            const whiteNoise = audioCtx.createBufferSource();
-            whiteNoise.buffer = noiseBuffer;
-            whiteNoise.loop = true;
-
-            const rainFilter = audioCtx.createBiquadFilter();
-            rainFilter.type = 'bandpass';
-            rainFilter.frequency.value = 1200;
-            rainFilter.Q.value = 0.8;
-
-            rainNode = audioCtx.createGain();
-            whiteNoise.connect(rainFilter);
-            rainFilter.connect(rainNode);
-            rainNode.connect(masterGain);
-            whiteNoise.start();
-            
-            audioStarted = true;
-        }
-
-        function playThunder() {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(40, audioCtx.currentTime);
-            
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = 100;
-
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(masterGain);
-
-            gain.gain.setValueAtTime(0, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.1);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 1.6);
-        }
+        scene.add(ground);
 
         // --- ANIMATION LOOP ---
         const clock = new THREE.Clock();
-        const ripplePool = [];
-
-        function updateRipples() {
-            waterCtx.fillStyle = 'black';
-            waterCtx.fillRect(0,0,512,512);
-            waterCtx.lineWidth = 1.5;
-            
-            const now = Date.now();
-            for(let i = ripplePool.length - 1; i >= 0; i--) {
-                const r = ripplePool[i];
-                const age = now - r.startTime;
-                if(age > 800) { ripplePool.splice(i, 1); continue; }
-                
-                const alpha = 0.6 * (1 - age/800);
-                const radius = (age/800) * 18;
-                waterCtx.strokeStyle = `rgba(255,255,255,${alpha})`;
-                waterCtx.beginPath();
-                waterCtx.arc(r.u * 512, r.v * 512, radius, 0, Math.PI*2);
-                waterCtx.stroke();
-            }
-            waterTex.needsUpdate = true;
-        }
 
         function animate() {
-            requestAnimationFrame(animate);
-            const dt = clock.getDelta();
-            const t = clock.getElapsedTime();
-            uniforms.uTime.value = t;
+            const elapsed = clock.getElapsedTime();
+            
+            // Update grass
+            grassMat.uniforms.uTime.value = elapsed;
 
-            // Rain Movement
-            const posAttr = rainLines.geometry.attributes.position;
-            for(let i=0; i<rainCount; i++) {
-                const speed = rainVelocities[i];
-                posAttr.array[i*6+1] -= speed;
-                posAttr.array[i*6+4] -= speed;
-                posAttr.array[i*6] -= 0.06;
-                posAttr.array[i*6+3] -= 0.06;
+            // Move camera gently
+            camera.position.x = Math.sin(elapsed * 0.2) * 2;
+            camera.position.z = 15 + Math.cos(elapsed * 0.1) * 2;
+            camera.lookAt(0, 1, 0);
 
-                if(posAttr.array[i*6+1] < -2) {
-                    const x = (Math.random() - 0.5) * 120;
-                    const z = (Math.random() - 0.5) * 120;
-                    posAttr.array[i*6] = x; posAttr.array[i*6+1] = 55; posAttr.array[i*6+2] = z;
-                    posAttr.array[i*6+3] = x - 0.15; posAttr.array[i*6+4] = 53.8; posAttr.array[i*6+5] = z;
-                    
-                    // Spawn ripple
-                    if(Math.random() < uniforms.uRainIntensity.value * 0.1) {
-                        ripplePool.push({ u: (x+60)/120, v: (z+60)/120, startTime: Date.now() });
-                    }
-                }
+            // Animate pollen
+            const positions = pollenPoints.geometry.attributes.position.array;
+            for(let i=0; i<POLLEN_COUNT; i++) {
+                const idx = i * 3;
+                positions[idx+1] += Math.sin(elapsed + i) * 0.01; // Vertical drift
+                positions[idx] += 0.02; // Lateral drift
+                
+                if(positions[idx] > 25) positions[idx] = -25;
             }
-            posAttr.needsUpdate = true;
-            updateRipples();
-
-            // Water Cube Pass (Performance Optimized)
-            if(Math.floor(t * 60) % 6 === 0) {
-                water.visible = false;
-                cubeCamera.position.copy(camera.position);
-                cubeCamera.update(renderer, scene);
-                water.visible = true;
-            }
-            waterMat.uniforms.uCameraPos.value.copy(camera.position);
+            pollenPoints.geometry.attributes.position.needsUpdate = true;
 
             renderer.render(scene, camera);
+            requestAnimationFrame(animate);
         }
-
-        // --- CINEMATIC TIMELINE (90s LOOP) ---
-        const masterTL = gsap.timeline({ repeat: -1 });
-
-        // SHOT 1: THE ARRIVAL (0-18s)
-        masterTL.to(camera.position, { z: 5, y: 2.4, duration: 18, ease: "none" });
-        masterTL.to(camera.rotation, { x: -0.04, duration: 18, ease: "none" }, 0);
-        masterTL.to(uniforms.uRainIntensity, { value: 0.7, duration: 18 }, 0);
-        masterTL.add(() => triggerLightning(), 16);
-
-        // SHOT 2: FIELD BREATHES (18-36s)
-        masterTL.add(() => {
-            camera.fov = 35; // 85mm approx
-            camera.updateProjectionMatrix();
-            camera.position.set(-10, 2.2, 5);
-        }, 18);
-        masterTL.to(camera.position, { x: 10, duration: 18, ease: "none" }, 18);
-        masterTL.add(() => triggerLightning(), 25);
-
-        // SHOT 3: CLOSE ON WATER (36-54s)
-        masterTL.add(() => {
-            camera.fov = 25; // 100mm macro approx
-            camera.updateProjectionMatrix();
-            camera.position.set(0, 0.6, 2);
-            camera.lookAt(0, 0.45, 0);
-        }, 36);
-        masterTL.to(camera.position, { z: 1, duration: 18, ease: "power1.inOut" }, 36);
-        masterTL.add(() => triggerLightning(), 47);
-
-        // SHOT 4: GOD'S EYE (54-72s)
-        masterTL.add(() => {
-            camera.fov = 65; 
-            camera.updateProjectionMatrix();
-            camera.position.set(0, 120, 0);
-            camera.rotation.set(-Math.PI/2, 0, 0);
-        }, 54);
-        masterTL.to(camera.rotation, { z: Math.PI/20, duration: 18, ease: "none" }, 54);
-        masterTL.add(() => triggerLightning(), 63);
-
-        // SHOT 5: THE RELEASE (72-90s)
-        masterTL.to(camera.position, { x: 0, y: 2.4, z: 8, duration: 18, ease: "power2.inOut" }, 72);
-        masterTL.add(() => triggerLightning(), 74);
-
-        // Start
         animate();
 
-        // --- INTERACTION ---
-        const cursorDot = document.getElementById('cursor-dot');
-        const cursorRing = document.getElementById('cursor-ring');
-        
-        window.addEventListener('mousemove', (e) => {
-            const x = e.clientX;
-            const y = e.clientY;
-            gsap.to(cursorDot, { x, y, duration: 0.1 });
-            gsap.to(cursorRing, { x: x - 12, y: y - 12, duration: 0.3 });
-        });
-
-        document.getElementById('sound-toggle').addEventListener('click', function() {
-            if(!audioStarted) {
-                initAudio();
-                this.innerHTML = "<span>🌧</span> SOUND ON";
-            } else {
-                if(audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                    this.innerHTML = "<span>🌧</span> SOUND ON";
-                } else {
-                    audioCtx.suspend();
-                    this.innerHTML = "<span>🔇</span> SOUND OFF";
-                }
-            }
-        });
-
-        // Hero Entrance
-        gsap.to('#hero-main', { opacity: 1, y: 0, duration: 1.5, delay: 3 });
-
-        // Scroll Triggers
-        gsap.utils.toArray('.glass-card').forEach(card => {
-            gsap.to(card, {
-                scrollTrigger: {
-                    trigger: card,
-                    start: "top 80%",
-                    toggleActions: "play none none reverse"
-                },
-                opacity: 1,
-                x: 0,
-                duration: 1
-            });
-        });
-
-        // Window Resize
+        // --- RESIZE ---
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
     </script>
 </body>
 </html>
