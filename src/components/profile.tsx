@@ -4,15 +4,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, Globe, Download, Shield, LogOut, 
-  ChevronRight, Lightbulb, Activity, Type, User, Camera, Upload
+  ChevronRight, Lightbulb, Activity, Type, User, Camera, Upload,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { getProfile, saveProfile, INDIAN_STATES, type UserProfile } from '@/lib/user-profile';
+import { getProfile, saveProfile, INDIAN_STATES, STORAGE_KEY, type UserProfile } from '@/lib/user-profile';
 import { getFarmInsight } from '@/ai/flows/farm-insight-flow';
 import { useTheme } from '@/components/theme-provider';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function ProfileScreen() {
   const { theme, setTheme } = useTheme();
@@ -85,6 +97,11 @@ export function ProfileScreen() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = '/';
   };
 
   const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -227,6 +244,45 @@ export function ProfileScreen() {
               </button>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Security & Session */}
+      <section className="bg-red-500/[0.02] border border-red-500/10 rounded-2xl p-8 space-y-8">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
+            <Shield size={18} />
+          </div>
+          <h3 className="text-lg font-headline font-bold text-white">Security & Session</h3>
+        </div>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-black/20 p-6 rounded-xl border border-white/5">
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-white">Sign Out from KrishiShield</p>
+            <p className="text-xs text-white/40">This will clear your field profile and all diagnostic records from this device.</p>
+          </div>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="h-10 px-8 rounded-lg font-bold uppercase tracking-widest text-[11px]">
+                <LogOut size={14} className="mr-2" /> Logout
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-[#0A1A0A] border-white/10">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white font-headline text-xl">Confirm Logout?</AlertDialogTitle>
+                <AlertDialogDescription className="text-white/60">
+                  Are you sure you want to log out? All your local data, including crop diagnostic history and farm profile, will be permanently removed from this device.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-white/5 border-white/10 text-white hover:bg-white/10">Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700 text-white">
+                  Clear Data & Logout
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </section>
 
