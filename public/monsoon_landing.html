@@ -3,336 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KrishiShield AI | Nature Friendly Intelligence</title>
+    <title>KrishiShield AI | Monsoon Morning</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,100..900;1,100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@1,900&family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
-            }
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+            "gsap": "https://cdn.skypack.dev/gsap@3.12.2",
+            "postprocessing": "https://cdn.jsdelivr.net/npm/postprocessing@6.33.2/+esm"
         }
+    }
     </script>
     <style>
         :root {
-            --primary: #4CAF50;
-            --primary-dark: #2E7D32;
-            --text-main: #E8F5E9;
-            --glass: rgba(15, 30, 15, 0.6);
+            --primary: #81C784;
+            --accent: #FF7043;
+            --bg: #0A0D1A;
         }
-
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
             overflow: hidden;
-            background-color: #050A05;
+            background-color: var(--bg);
             font-family: 'Inter', sans-serif;
-            color: var(--text-main);
+            cursor: none;
         }
-
-        canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
+        #canvas-container {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
             z-index: 0;
-            pointer-events: none;
         }
-
-        /* --- UI OVERLAY --- */
-        #ui-root {
-            position: relative;
+        #ui-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
             z-index: 10;
-            width: 100%;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .hero-text-container {
             text-align: center;
-            background: radial-gradient(circle at center, transparent 0%, rgba(5,10,5,0.4) 100%);
         }
-
-        .hero-container {
-            max-width: 800px;
-            padding: 20px;
-            animation: fadeIn 2s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .hindi-line {
+        .top-line {
             font-family: 'Anybody', sans-serif;
-            font-weight: 900;
-            font-style: italic;
-            font-size: clamp(1rem, 3vw, 1.5rem);
-            color: var(--primary);
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            color: rgba(200, 230, 210, 0.7);
+            letter-spacing: 0.08em;
             margin-bottom: 0.5rem;
-            opacity: 0.8;
+            transform: translateY(20px);
+            opacity: 0;
         }
-
         .main-title {
             font-family: 'Anybody', sans-serif;
-            font-weight: 900;
-            font-style: italic;
-            font-size: clamp(3rem, 10vw, 7rem);
-            line-height: 0.9;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(to bottom, #FFFFFF, #A5D6A7);
+            font-size: clamp(3rem, 8vw, 6.5rem);
+            color: rgba(230, 255, 240, 0.95);
+            margin: 0;
+            text-shadow: 0 0 60px rgba(80, 200, 120, 0.3);
+            position: relative;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+            background-size: 200% 100%;
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: textShimmer 4s infinite;
         }
-
+        @keyframes textShimmer {
+            0% { background-position: -100% 0; }
+            100% { background-position: 100% 0; }
+        }
         .tagline {
-            font-size: clamp(1rem, 2.5vw, 1.4rem);
             font-weight: 300;
-            opacity: 0.7;
-            max-width: 600px;
-            margin: 0 auto 3rem;
-            line-height: 1.6;
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            color: rgba(200, 230, 215, 0.65);
+            letter-spacing: 0.03em;
+            margin-top: 1rem;
+            opacity: 0;
         }
-
-        .btn-group {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
+        .buttons-container {
+            margin-top: 3rem;
+            display: flex; gap: 1.5rem;
+            pointer-events: auto;
+            opacity: 0;
         }
-
         .btn {
-            padding: 18px 48px;
-            border-radius: 100px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            cursor: pointer;
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+            padding: 14px 36px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: none;
+            transition: all 0.3s ease;
             text-decoration: none;
-            font-size: 14px;
         }
-
         .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            background: linear-gradient(135deg, #1B5E20, #2E7D32);
             color: white;
-            border: none;
-            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
         }
-
         .btn-primary:hover {
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 0 20px 40px rgba(76, 175, 80, 0.5);
+            box-shadow: 0 0 0 12px rgba(76, 175, 80, 0);
         }
-
-        .btn-outline {
-            background: rgba(255,255,255,0.05);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.2);
-            backdrop-filter: blur(10px);
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid rgba(200, 230, 215, 0.3);
+            color: rgba(200, 230, 215, 0.7);
         }
-
-        .btn-outline:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: var(--primary);
+        .btn-secondary:hover {
+            border-color: rgba(200, 230, 215, 0.7);
         }
-
-        /* --- PERFORMANCE INDICATOR --- */
-        .perf-hint {
-            position: fixed;
-            bottom: 30px;
-            left: 30px;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-            opacity: 0.3;
-            font-weight: 900;
+        #custom-cursor {
+            position: fixed; top: 0; left: 0;
+            width: 32px; height: 32px;
+            border: 1.5px solid rgba(150, 210, 180, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s, border-color 0.3s;
+        }
+        #custom-cursor-dot {
+            position: absolute; top: 50%; left: 50%;
+            width: 8px; height: 8px;
+            background: rgba(180, 230, 200, 0.9);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .rain-counter {
+            position: fixed; bottom: 2rem; left: 2rem;
+            font-size: 12px; font-weight: 300;
+            color: rgba(200, 230, 215, 0.4);
+            z-index: 20;
+        }
+        .perf-indicator {
+            position: fixed; bottom: 2rem; right: 2rem;
+            z-index: 20;
+            display: flex; align-items: center; gap: 8px;
+            color: rgba(200, 230, 215, 0.4);
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+            cursor: pointer; pointer-events: auto;
+        }
+        .perf-leaf {
+            width: 12px; height: 12px;
+            background: #81C784;
+            clip-path: path('M12,2C12,2 12,8 6,10C6,10 2,11 2,16C2,19 4,22 8,22C11,22 13,20 14,18C15,20 17,22 20,22C24,22 26,19 26,16C26,11 22,10 22,10C16,8 16,2 16,2Z');
+            transition: opacity 0.5s;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui-root">
-        <div class="hero-container">
-            <div class="hindi-line">प्रकृति और प्रगति।</div>
+    <div id="canvas-container"></div>
+    
+    <div id="ui-overlay">
+        <div class="hero-text-container">
+            <div class="top-line">मानसून आया।</div>
             <h1 class="main-title">KrishiShield AI</h1>
-            <p class="tagline">The intelligence of nature, amplified by technology. Empowering farmers with precision and peace of mind.</p>
-            
-            <div class="btn-group">
-                <a href="/dashboard" class="btn btn-primary">Enter Dashboard</a>
-                <a href="#" class="btn btn-outline">Explore Mission</a>
-            </div>
+            <p class="tagline">Turn every raindrop into revenue.</p>
+        </div>
+        <div class="buttons-container">
+            <a href="/dashboard" class="btn btn-primary" id="enter-btn">Enter KrishiShield</a>
+            <a href="#about" class="btn btn-secondary">See How It Works</a>
         </div>
     </div>
 
-    <div class="perf-hint">Nature-Engine V2.0 // Active</div>
+    <div class="rain-counter" id="rain-counter">☁ 847mm this season · Nasik district</div>
+    
+    <div class="perf-indicator" id="perf-toggle">
+        <span id="perf-label">Ultra</span>
+        <div class="perf-leaf" id="perf-leaf"></div>
+    </div>
+
+    <div id="custom-cursor">
+        <div id="custom-cursor-dot"></div>
+    </div>
 
     <script type="module">
         import * as THREE from 'three';
+        import { gsap } from 'gsap';
+        import * as POST from 'postprocessing';
 
-        // --- SCENE SETUP ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050A05);
-        scene.fog = new THREE.FogExp2(0x050A05, 0.04);
-
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 15);
-        camera.lookAt(0, 2, 0);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        document.body.appendChild(renderer.domElement);
-
-        // --- LIGHTING ---
-        const ambientLight = new THREE.AmbientLight(0x404040, 2);
-        scene.add(ambientLight);
-
-        const sunLight = new THREE.DirectionalLight(0xffffff, 2);
-        sunLight.position.set(5, 10, 7.5);
-        scene.add(sunLight);
-
-        // --- GRASS SYSTEM ---
-        const GRASS_COUNT = 15000;
-        const grassGeo = new THREE.PlaneGeometry(0.1, 1.2, 1, 4);
-        grassGeo.translate(0, 0.6, 0); // Move origin to base
-
-        const grassMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uColorLow: { value: new THREE.Color(0x1B5E20) },
-                uColorHigh: { value: new THREE.Color(0x81C784) }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                varying float vHeightFactor;
-                uniform float uTime;
-                
-                void main() {
-                    vUv = uv;
-                    vHeightFactor = position.y;
-                    
-                    vec3 pos = position;
-                    
-                    // Gentle swaying motion
-                    float wave = sin(uTime * 1.5 + modelMatrix[3][0] * 0.5 + modelMatrix[3][2] * 0.3) * 0.2;
-                    wave += sin(uTime * 2.8 + modelMatrix[3][0] * 0.1) * 0.05;
-                    
-                    pos.x += wave * vHeightFactor;
-                    pos.z += wave * 0.5 * vHeightFactor;
-
-                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                varying float vHeightFactor;
-                uniform vec3 uColorLow;
-                uniform vec3 uColorHigh;
-
-                void main() {
-                    vec3 color = mix(uColorLow, uColorHigh, vHeightFactor);
-                    gl_FragColor = vec4(color, 1.0);
-                }
-            `,
-            side: THREE.DoubleSide
-        });
-
-        const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, GRASS_COUNT);
-        const dummy = new THREE.Object3D();
-
-        for (let i = 0; i < GRASS_COUNT; i++) {
-            const x = (Math.random() - 0.5) * 60;
-            const z = (Math.random() - 0.5) * 60;
-            
-            // Create some rolling hills logic
-            const y = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 2;
-            
-            dummy.position.set(x, y, z);
-            dummy.rotation.y = Math.random() * Math.PI;
-            dummy.scale.setScalar(0.8 + Math.random() * 0.5);
-            dummy.updateMatrix();
-            grassMesh.setMatrixAt(i, dummy.matrix);
-        }
-        scene.add(grassMesh);
-
-        // --- POLLEN PARTICLES ---
-        const POLLEN_COUNT = 800;
-        const pollenGeo = new THREE.BufferGeometry();
-        const pollenPos = new Float32Array(POLLEN_COUNT * 3);
-        for(let i=0; i<POLLEN_COUNT*3; i+=3) {
-            pollenPos[i] = (Math.random() - 0.5) * 50;
-            pollenPos[i+1] = Math.random() * 20;
-            pollenPos[i+2] = (Math.random() - 0.5) * 50;
-        }
-        pollenGeo.setAttribute('position', new THREE.BufferAttribute(pollenPos, 3));
-        const pollenMat = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.08,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending
-        });
-        const pollenPoints = new THREE.Points(pollenGeo, pollenMat);
-        scene.add(pollenPoints);
-
-        // --- TERRAIN ---
-        const groundGeo = new THREE.PlaneGeometry(100, 100, 100, 100);
-        groundGeo.rotateX(-Math.PI / 2);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x050F05, roughness: 1 });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        
-        // Match hills with grass
-        const posAttr = groundGeo.getAttribute('position');
-        for (let i = 0; i < posAttr.count; i++) {
-            const px = posAttr.getX(i);
-            const pz = posAttr.getZ(i);
-            posAttr.setY(i, Math.sin(px * 0.1) * Math.cos(pz * 0.1) * 2 - 0.2);
-        }
-        scene.add(ground);
-
-        // --- ANIMATION LOOP ---
-        const clock = new THREE.Clock();
-
-        function animate() {
-            const elapsed = clock.getElapsedTime();
-            
-            // Update grass
-            grassMat.uniforms.uTime.value = elapsed;
-
-            // Move camera gently
-            camera.position.x = Math.sin(elapsed * 0.2) * 2;
-            camera.position.z = 15 + Math.cos(elapsed * 0.1) * 2;
-            camera.lookAt(0, 1, 0);
-
-            // Animate pollen
-            const positions = pollenPoints.geometry.attributes.position.array;
-            for(let i=0; i<POLLEN_COUNT; i++) {
-                const idx = i * 3;
-                positions[idx+1] += Math.sin(elapsed + i) * 0.01; // Vertical drift
-                positions[idx] += 0.02; // Lateral drift
-                
-                if(positions[idx] > 25) positions[idx] = -25;
+        /**
+         * CINEMATIC ENGINE: KRISHISHIELD MONSOON
+         */
+        class MonsoonScene {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.performance = this.detectPerformance();
+                this.init();
             }
-            pollenPoints.geometry.attributes.position.needsUpdate = true;
 
-            renderer.render(scene, camera);
-            requestAnimationFrame(animate);
+            detectPerformance() {
+                const cores = navigator.hardwareConcurrency || 4;
+                const memory = navigator.deviceMemory || 4;
+                if (cores >= 8 && memory >= 8) return 'Ultra';
+                if (cores >= 4 && memory >= 4) return 'High';
+                return 'Medium';
+            }
+
+            async init() {
+                // 1. Setup Base
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x0D1A10, 0.018);
+
+                this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
+                this.camera.position.set(0, 2.4, 8);
+                this.camera.lookAt(0, 1.8, 0);
+
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true, 
+                    logarithmicDepthBuffer: true,
+                    powerPreference: "high-performance"
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+                this.container.appendChild(this.renderer.domElement);
+
+                this.clock = new THREE.Clock();
+                this.mouse = new THREE.Vector2();
+                this.raycaster = new THREE.Raycaster();
+
+                // 2. Create World Components
+                this.createSky();
+                this.createTerrain();
+                this.createRain();
+                this.createPlants();
+                this.createMist();
+                this.createLights();
+                this.setupPostProcessing();
+                
+                // 3. UI & Animation
+                this.setupEvents();
+                this.animate();
+                this.startOpeningCinematic();
+            }
+
+            createSky() {
+                const skyGeo = new THREE.SphereGeometry(600, 64, 64);
+                const skyMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uLightning: { value: 0 }
+                    },
+                    side: THREE.BackSide,
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float uTime;
+                        uniform float uLightning;
+                        varying vec2 vUv;
+
+                        float hash(vec2 p) {
+                            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+                        }
+
+                        float noise(vec2 p) {
+                            vec2 i = floor(p); vec2 f = fract(p);
+                            vec2 u = f * f * (3.0 - 2.0 * f);
+                            return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
+                                       mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), u.y);
+                        }
+
+                        float fbm(vec2 p) {
+                            float v = 0.0; float a = 0.5;
+                            for (int i = 0; i < 4; i++) {
+                                v += a * noise(p);
+                                p *= 2.0; a *= 0.5;
+                            }
+                            return v;
+                        }
+
+                        void main() {
+                            vec3 zen = vec3(0.05, 0.05, 0.1);
+                            vec3 hor = vec3(0.04, 0.12, 0.08);
+                            vec3 color = mix(hor, zen, vUv.y);
+
+                            float c1 = fbm(vUv * 1.2 + vec2(uTime * 0.006, 0.0));
+                            if(c1 > 0.52) color = mix(color, vec3(0.1, 0.1, 0.16), (c1-0.52)*2.0);
+
+                            float c2 = fbm(vUv * 3.5 + vec2(uTime * 0.015, uTime * 0.004));
+                            if(c2 > 0.58) color = mix(color, vec3(0.16, 0.18, 0.25), 0.3);
+
+                            vec2 moonPos = vec2(0.72, 0.78);
+                            float moon = smoothstep(0.04, 0.02, length(vUv - moonPos));
+                            float halo = smoothstep(0.18, 0.06, length(vUv - moonPos)) * 0.15;
+                            
+                            vec3 moonColor = vec3(0.86, 0.9, 0.82) * moon * (1.0 - clamp(c1*2.0, 0.0, 0.8));
+                            color += moonColor + vec3(0.6, 0.8, 0.6) * halo;
+                            
+                            color += vec3(0.7, 0.85, 1.0) * uLightning * 0.35;
+                            
+                            gl_FragColor = vec4(color, 1.0);
+                        }
+                    `
+                });
+                this.sky = new THREE.Mesh(skyGeo, skyMat);
+                this.scene.add(this.sky);
+            }
+
+            createTerrain() {
+                const terrainGeo = new THREE.PlaneGeometry(300, 300, 200, 200);
+                terrainGeo.rotateX(-Math.PI / 2);
+                
+                const terrainMat = new THREE.ShaderMaterial({
+                    uniforms: { uReveal: { value: 0 } },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        varying float vHeight;
+                        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+                        float noise(vec2 p) {
+                            vec2 i = floor(p); vec2 f = fract(p);
+                            vec2 u = f*f*(3.0-2.0*f);
+                            return mix(mix(hash(i+vec2(0,0)),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y);
+                        }
+                        void main() {
+                            vUv = uv;
+                            float h = noise(uv * 12.0) * 1.2 + noise(uv * 40.0) * 0.4;
+                            vHeight = h;
+                            vec3 pos = position;
+                            pos.y += h;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec2 vUv;
+                        varying float vHeight;
+                        uniform float uReveal;
+                        void main() {
+                            vec3 flooded = vec3(0.04, 0.12, 0.06);
+                            vec3 soil = vec3(0.1, 0.18, 0.08);
+                            vec3 bund = vec3(0.16, 0.25, 0.12);
+                            vec3 color = mix(flooded, soil, smoothstep(0.4, 0.8, vHeight));
+                            color = mix(color, bund, smoothstep(0.8, 1.2, vHeight));
+                            gl_FragColor = vec4(color, uReveal);
+                        }
+                    `,
+                    transparent: true
+                });
+                this.terrain = new THREE.Mesh(terrainGeo, terrainMat);
+                this.scene.add(this.terrain);
+
+                // Water Surface
+                const waterGeo = new THREE.PlaneGeometry(300, 300);
+                waterGeo.rotateX(-Math.PI/2);
+                const waterMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uReveal: { value: 0 },
+                        uLightning: { value: 0 }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float uTime;
+                        uniform float uReveal;
+                        uniform float uLightning;
+                        varying vec2 vUv;
+                        void main() {
+                            vec3 color = vec3(0.02, 0.06, 0.04);
+                            color += vec3(0.8, 0.9, 1.0) * uLightning * 0.4;
+                            gl_FragColor = vec4(color, uReveal * 0.85);
+                        }
+                    `,
+                    transparent: true
+                });
+                this.water = new THREE.Mesh(waterGeo, waterMat);
+                this.water.position.y = 0.55;
+                this.scene.add(this.water);
+            }
+
+            createRain() {
+                const count = this.performance === 'Ultra' ? 200000 : 80000;
+                const rainGeo = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                const vel = new Float32Array(count);
+                
+                for(let i=0; i<count; i++) {
+                    pos[i*3] = (Math.random() - 0.5) * 150;
+                    pos[i*3+1] = Math.random() * 100;
+                    pos[i*3+2] = (Math.random() - 0.5) * 150;
+                    vel[i] = 0.4 + Math.random() * 0.3;
+                }
+                
+                rainGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                
+                const rainMat = new THREE.PointsMaterial({
+                    color: 0xAAAAAA,
+                    size: 0.12,
+                    transparent: true,
+                    opacity: 0.3
+                });
+
+                this.rain = new THREE.Points(rainGeo, rainMat);
+                this.rainVel = vel;
+                this.scene.add(this.rain);
+            }
+
+            createPlants() {
+                const count = this.performance === 'Ultra' ? 40000 : 15000;
+                const plantGeo = new THREE.CylinderGeometry(0, 0.05, 1, 3);
+                const plantMat = new THREE.MeshPhongMaterial({
+                    color: 0x51A154,
+                    shininess: 40,
+                    transparent: true,
+                    opacity: 0
+                });
+                
+                this.plants = new THREE.InstancedMesh(plantGeo, plantMat, count);
+                const dummy = new THREE.Object3D();
+                
+                for(let i=0; i<count; i++) {
+                    const x = (Math.random() - 0.5) * 100;
+                    const z = (Math.random() - 0.5) * 100;
+                    dummy.position.set(x, 0.5, z);
+                    dummy.scale.setScalar(0.5 + Math.random() * 0.5);
+                    dummy.rotation.y = Math.random() * Math.PI;
+                    dummy.updateMatrix();
+                    this.plants.setMatrixAt(i, dummy.matrix);
+                }
+                this.scene.add(this.plants);
+            }
+
+            createMist() {
+                const count = 6000;
+                const mistGeo = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                for(let i=0; i<count; i++) {
+                    pos[i*3] = (Math.random() - 0.5) * 120;
+                    pos[i*3+1] = Math.random() * 1.5;
+                    pos[i*3+2] = (Math.random() - 0.5) * 120;
+                }
+                mistGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                const mistMat = new THREE.PointsMaterial({
+                    color: 0xffffff,
+                    size: 0.8,
+                    transparent: true,
+                    opacity: 0
+                });
+                this.mist = new THREE.Points(mistGeo, mistMat);
+                this.scene.add(this.mist);
+            }
+
+            createLights() {
+                this.ambient = new THREE.HemisphereLight(0xB0BEC5, 0x2E7D32, 0.8);
+                this.scene.add(this.ambient);
+
+                this.sun = new THREE.DirectionalLight(0xFF8A65, 0.4);
+                this.sun.position.set(20, 10, -50);
+                this.scene.add(this.sun);
+            }
+
+            setupPostProcessing() {
+                this.composer = new POST.EffectComposer(this.renderer);
+                this.composer.addPass(new POST.RenderPass(this.scene, this.camera));
+
+                const bloom = new POST.BloomEffect({
+                    intensity: 1.1,
+                    luminanceThreshold: 0.35,
+                    radius: 0.7
+                });
+                
+                const vignette = new POST.VignetteEffect({
+                    darkness: 0.55,
+                    offset: 0.25
+                });
+
+                const grain = new POST.NoiseEffect({ premultiply: true });
+                grain.blendMode.opacity.value = 0.08;
+
+                const effectPass = new POST.EffectPass(this.camera, bloom, vignette, grain);
+                this.composer.addPass(effectPass);
+            }
+
+            startOpeningCinematic() {
+                const tl = gsap.timeline({ delay: 1 });
+                
+                // Single drop ripple logic simulated via camera move & reveal
+                tl.to(this.terrain.material.uniforms.uReveal, { value: 1, duration: 4, ease: "power2.out" });
+                tl.to(this.water.material.uniforms.uReveal, { value: 1, duration: 3 }, "-=3");
+                tl.to(this.plants.material, { opacity: 0.8, duration: 3 }, "-=2");
+                tl.to(this.mist.material, { opacity: 0.08, duration: 5 }, "-=2");
+                
+                tl.to("#ui-overlay", { opacity: 1, duration: 2 }, "-=1");
+                tl.to(".top-line", { y: 0, opacity: 1, duration: 1, ease: "back.out" }, "-=0.5");
+                tl.to(".tagline", { opacity: 1, duration: 1 }, "-=0.5");
+                tl.to(".buttons-container", { opacity: 1, duration: 1 }, "-=0.5");
+
+                // Lightning cycle
+                this.lightningCycle();
+            }
+
+            lightningCycle() {
+                const delay = 15 + Math.random() * 10;
+                gsap.delayedCall(delay, () => {
+                    const brightness = { val: 0 };
+                    gsap.to(brightness, {
+                        val: 1,
+                        duration: 0.1,
+                        onUpdate: () => {
+                            this.sky.material.uniforms.uLightning.value = brightness.val;
+                            this.water.material.uniforms.uLightning.value = brightness.val;
+                        },
+                        onComplete: () => {
+                            gsap.to(brightness, {
+                                val: 0,
+                                duration: 0.4,
+                                onUpdate: () => {
+                                    this.sky.material.uniforms.uLightning.value = brightness.val;
+                                    this.water.material.uniforms.uLightning.value = brightness.val;
+                                }
+                            });
+                            // Shake
+                            gsap.to(this.camera.position, {
+                                x: "+=0.03", y: "+=0.03", duration: 0.1, repeat: 5, yoyo: true
+                            });
+                        }
+                    });
+                    this.lightningCycle();
+                });
+            }
+
+            setupEvents() {
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    
+                    const cursor = document.getElementById('custom-cursor');
+                    gsap.to(cursor, { left: e.clientX, top: e.clientY, duration: 0.1 });
+                });
+
+                const counter = document.getElementById('rain-counter');
+                let mm = 847;
+                setInterval(() => {
+                    mm++;
+                    counter.innerText = `☁ ${mm}mm this season · Nasik district`;
+                }, 3000);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const t = this.clock.getElapsedTime();
+
+                // Update sky
+                this.sky.material.uniforms.uTime.value = t;
+
+                // Update Rain
+                const rainPos = this.rain.geometry.attributes.position.array;
+                for(let i=0; i<this.rainVel.length; i++) {
+                    rainPos[i*3+1] -= this.rainVel[i];
+                    rainPos[i*3] -= 0.05; // Wind drift
+                    if(rainPos[i*3+1] < 0) {
+                        rainPos[i*3+1] = 60 + Math.random() * 20;
+                        rainPos[i*3] = (Math.random() - 0.5) * 150;
+                    }
+                }
+                this.rain.geometry.attributes.position.needsUpdate = true;
+
+                // Update Mist
+                this.mist.position.y = Math.sin(t * 0.5) * 0.2;
+
+                // Subtle Camera Breath
+                this.camera.position.y += Math.sin(t) * 0.001;
+
+                this.composer.render();
+            }
         }
-        animate();
 
-        // --- RESIZE ---
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            new MonsoonScene();
         });
     </script>
 </body>
