@@ -101,7 +101,8 @@ export function ProfileScreen() {
 
   const handleLogout = () => {
     localStorage.clear();
-    window.location.href = '/';
+    // Redirect to the alternate cinematic landing page
+    window.location.href = '/monsoon_landing.html';
   };
 
   const initials = profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
