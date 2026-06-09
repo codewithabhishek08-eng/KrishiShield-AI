@@ -51,6 +51,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0A0D1A);
+    scene.fog = new THREE.FogExp2(0xB0BEC5, 0.008);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 8, 15);
@@ -195,7 +196,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const leafClusterGeo = new THREE.SphereGeometry(0.4, 5, 4);
     leafClusterGeo.translate(0, 1.2, 0);
     
-    // Merge geometries for instanced mesh correctly using BufferGeometryUtils
     const treeGeo = BufferGeometryUtils.mergeGeometries([trunkGeo, leafClusterGeo]);
     
     const treeMat = new THREE.ShaderMaterial({
@@ -228,7 +228,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     for (let i = 0; i < 50000; i++) {
       const rx = (Math.random() - 0.5) * 200;
       const rz = (Math.random() - 0.5) * 200;
-      // Position only on slopes
       if (Math.abs(rx) < 20 && rz > -60 && rz < 30) continue; 
       
       const rh = 1.0 + Math.random() * 2.0;
@@ -287,7 +286,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     banyanTrunk.position.y = 3;
     banyanGroup.add(banyanTrunk);
 
-    // Aerial Roots
     for (let i = 0; i < 40; i++) {
       const angle = (i / 40) * Math.PI * 2;
       const rootGeo = new THREE.CylinderGeometry(0.02, 0.02, 5, 4);
@@ -366,6 +364,46 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const ripples = Array.from({ length: rippleCount }, () => ({ active: false, startTime: 0, x: 0, y: 0, z: 0 }));
     let ripplePointer = 0;
 
+    // GROUND MIST
+    const mistCount = 6000;
+    const mistPositions = new Float32Array(mistCount * 3);
+    const mistVelocities = new Float32Array(mistCount);
+    for (let i = 0; i < mistCount; i++) {
+      mistPositions[i * 3] = (Math.random() - 0.5) * 100;
+      mistPositions[i * 3 + 1] = Math.random() * 8; // Valley floor focus
+      mistPositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+      mistVelocities[i] = 0.001 + Math.random() * 0.003;
+    }
+    const mistGeo = new THREE.BufferGeometry();
+    mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPositions, 3));
+    const mistMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        uniform float uTime;
+        varying float vOpacity;
+        void main() {
+          vec3 pos = position;
+          pos.x += sin(uTime * 0.5 + position.z) * 0.2;
+          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+          gl_PointSize = 120.0 * (1.0 / -mvPosition.z);
+          vOpacity = 0.08 * (1.0 - (pos.y / 8.0));
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying float vOpacity;
+        void main() {
+          float dist = distance(gl_PointCoord, vec2(0.5));
+          if (dist > 0.5) discard;
+          gl_FragColor = vec4(1.0, 1.0, 1.0, vOpacity * (1.0 - dist * 2.0));
+        }
+      `
+    });
+    const mistParticles = new THREE.Points(mistGeo, mistMat);
+    scene.add(mistParticles);
+
     // CLOUDS
     const cloudColors = [0x2C3344, 0x4A5568, 0x8899AA, 0xD4DDE8];
     const cloudSpeeds = [0.002, 0.004, 0.007, 0.011];
@@ -425,6 +463,15 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       rainMat.uniforms.uTime.value = t;
       treeMat.uniforms.uTime.value = t;
       bambooMat.uniforms.uTime.value = t;
+      mistMat.uniforms.uTime.value = t;
+
+      // Mist Animation
+      const posAttr = mistGeo.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < mistCount; i++) {
+        posAttr.setY(i, posAttr.getY(i) + mistVelocities[i]);
+        if (posAttr.getY(i) > 8) posAttr.setY(i, 0);
+      }
+      posAttr.needsUpdate = true;
 
       // Lightning Logic
       if (now - lastLightningTime > lightningTimer) {
