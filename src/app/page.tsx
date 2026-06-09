@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { IntroPreloader } from '@/components/intro-preloader';
 import { AppShell } from '@/components/app-shell';
 import { Dashboard } from '@/components/dashboard';
 import { MarketScreen } from '@/components/market';
@@ -12,7 +11,6 @@ import { ProfileScreen } from '@/components/profile';
 import { ProfileBanner } from '@/components/profile-banner';
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
@@ -37,7 +35,7 @@ export default function Home() {
       });
     }, 100);
     return () => clearTimeout(timer);
-  }, [activeTab, loading]);
+  }, [activeTab]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -51,14 +49,9 @@ export default function Home() {
   };
 
   return (
-    <>
-      {loading && <IntroPreloader onComplete={() => setLoading(false)} />}
-      {!loading && (
-        <AppShell activeTab={activeTab} setActiveTab={setActiveTab}>
-          <ProfileBanner />
-          {renderContent()}
-        </AppShell>
-      )}
-    </>
+    <AppShell activeTab={activeTab} setActiveTab={setActiveTab}>
+      <ProfileBanner />
+      {renderContent()}
+    </AppShell>
   );
 }
