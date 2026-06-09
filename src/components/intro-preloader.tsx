@@ -28,9 +28,9 @@ const TerrainShader = {
     varying vec3 vViewDir;
     uniform float uTime;
 
-    // Classic Perlin Noise
     vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
     float fade(float t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
+    
     float cnoise(vec2 P){
       vec4 Pi = floor(P.xyxy) + vec4(0.0, 0.0, 1.0, 1.0);
       vec4 Pf = fract(P.xyxy) - vec4(0.0, 0.0, 1.0, 1.0);
@@ -61,17 +61,17 @@ const TerrainShader = {
       vUv = uv;
       vec3 pos = position;
       
-      // Generate rolling hills
-      float elevation = cnoise(pos.xz * 0.015) * 8.0;
-      elevation += cnoise(pos.xz * 0.04) * 2.5;
-      elevation += cnoise(pos.xz * 0.1) * 0.5;
+      // Dramatic rolling hills logic
+      float elevation = cnoise(pos.xz * 0.01) * 12.0;
+      elevation += cnoise(pos.xz * 0.03) * 4.0;
+      elevation += cnoise(pos.xz * 0.08) * 1.5;
       
       pos.y += elevation;
       vElevation = elevation;
 
       vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
       vViewDir = normalize(cameraPosition - worldPosition.xyz);
-      vNormal = normalMatrix * normal; // Simplified for procedural terrain
+      vNormal = normalMatrix * normal;
 
       gl_Position = projectionMatrix * viewMatrix * worldPosition;
     }
@@ -85,21 +85,21 @@ const TerrainShader = {
 
     void main() {
       vec3 lightDir = normalize(uSunPos);
-      float diff = max(0.2, dot(vNormal, lightDir));
+      float diff = max(0.3, dot(vNormal, lightDir));
       
-      // Deep agricultural green palette
-      vec3 deepGreen = vec3(0.04, 0.18, 0.06);
-      vec3 lushGreen = vec3(0.12, 0.42, 0.18);
-      vec3 highlightGreen = vec3(0.45, 0.72, 0.22);
+      // Elite agricultural palette
+      vec3 deepGreen = vec3(0.02, 0.12, 0.04);
+      vec3 vibrantGreen = vec3(0.1, 0.38, 0.15);
+      vec3 fieldGold = vec3(0.4, 0.6, 0.1);
       
-      vec3 color = mix(deepGreen, lushGreen, smoothstep(-5.0, 5.0, vElevation));
-      color = mix(color, highlightGreen, smoothstep(5.0, 10.0, vElevation));
+      vec3 color = mix(deepGreen, vibrantGreen, smoothstep(-5.0, 8.0, vElevation));
+      color = mix(color, fieldGold, smoothstep(8.0, 15.0, vElevation));
       
-      // Atmospheric haze
-      float distanceHaze = smoothstep(100.0, 400.0, length(vViewDir));
-      vec3 skyColor = vec3(0.5, 0.7, 0.9);
+      // Atmospheric drone haze
+      float haze = smoothstep(150.0, 500.0, length(vViewDir));
+      vec3 hazeColor = vec3(0.6, 0.75, 0.85);
       
-      gl_FragColor = vec4(mix(color * diff, skyColor, distanceHaze * 0.3), 1.0);
+      gl_FragColor = vec4(mix(color * diff, hazeColor, haze * 0.4), 1.0);
     }
   `
 };
@@ -110,7 +110,6 @@ const GrassShader = {
     uSunPos: { value: new THREE.Vector3(100, 50, -100) },
   },
   vertexShader: `
-    attribute vec3 offset;
     attribute float phase;
     varying vec2 vUv;
     varying float vSway;
@@ -120,15 +119,13 @@ const GrassShader = {
       vUv = uv;
       vec3 pos = position;
       
-      // Wind sway logic
-      float sway = sin(uTime * 1.5 + phase + offset.x * 0.5) * pos.y * 0.4;
-      pos.x += sway;
-      pos.z += sway * 0.3;
-      vSway = sway;
+      // Wind fluid waves
+      float wind = sin(uTime * 1.2 + phase + instanceMatrix[3][0] * 0.3) * pos.y * 0.5;
+      pos.x += wind;
+      pos.z += wind * 0.4;
+      vSway = wind;
 
       vec4 worldPosition = instanceMatrix * vec4(pos, 1.0);
-      worldPosition.xyz += offset;
-
       gl_Position = projectionMatrix * viewMatrix * worldPosition;
     }
   `,
@@ -137,13 +134,10 @@ const GrassShader = {
     varying float vSway;
 
     void main() {
-      // Grass color gradient
-      vec3 base = vec3(0.08, 0.25, 0.12);
-      vec3 tip = vec3(0.35, 0.65, 0.25);
+      vec3 base = vec3(0.05, 0.22, 0.08);
+      vec3 tip = vec3(0.25, 0.62, 0.15);
       vec3 color = mix(base, tip, vUv.y);
-      
-      // Add subtle sheen
-      color += abs(vSway) * 0.1;
+      color += abs(vSway) * 0.15; // Specular highlights from motion
 
       gl_FragColor = vec4(color, 1.0);
     }
@@ -158,20 +152,19 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     if (!containerRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
-    scene.fog = new THREE.FogExp2(0x91b5d1, 0.006);
+    scene.background = new THREE.Color(0x91b5d1);
+    scene.fog = new THREE.FogExp2(0x91b5d1, 0.005);
 
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 15, 100);
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1500);
+    camera.position.set(0, 40, 150);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.shadowMap.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
     // 1. Cinematic Terrain
-    const terrainGeo = new THREE.PlaneGeometry(1000, 1000, 256, 256);
+    const terrainGeo = new THREE.PlaneGeometry(1200, 1200, 256, 256);
     terrainGeo.rotateX(-Math.PI / 2);
     const terrainMat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.clone(TerrainShader.uniforms),
@@ -181,10 +174,10 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const terrain = new THREE.Mesh(terrainGeo, terrainMat);
     scene.add(terrain);
 
-    // 2. Infinite Field (Instanced Grass)
-    const grassCount = 120000;
-    const grassGeo = new THREE.PlaneGeometry(0.15, 1.2, 1, 4);
-    grassGeo.translate(0, 0.6, 0);
+    // 2. Endless Fields (Dense Grass)
+    const grassCount = 160000;
+    const grassGeo = new THREE.PlaneGeometry(0.2, 1.8, 1, 4);
+    grassGeo.translate(0, 0.9, 0);
     const grassMat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.clone(GrassShader.uniforms),
       vertexShader: GrassShader.vertexShader,
@@ -197,69 +190,62 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const phases = new Float32Array(grassCount);
 
     for (let i = 0; i < grassCount; i++) {
-      const x = (Math.random() - 0.5) * 400;
-      const z = (Math.random() - 0.5) * 400;
-      
-      const y = 0; 
-      
-      dummy.position.set(x, y, z);
+      const x = (Math.random() - 0.5) * 600;
+      const z = (Math.random() - 0.5) * 600;
+      dummy.position.set(x, 0, z);
       dummy.rotation.y = Math.random() * Math.PI;
+      dummy.scale.setScalar(0.8 + Math.random() * 0.5);
       dummy.updateMatrix();
       grassMesh.setMatrixAt(i, dummy.matrix);
-      
       phases[i] = Math.random() * Math.PI * 2;
     }
     grassGeo.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
     scene.add(grassMesh);
 
-    // 3. Sun & Atmospheric Light
-    const sun = new THREE.DirectionalLight(0xfff1e0, 1.5);
-    sun.position.set(100, 50, -100);
+    // 3. Lighting System
+    const sun = new THREE.DirectionalLight(0xfff5e6, 2.0);
+    sun.position.set(100, 80, -150);
     scene.add(sun);
+    scene.add(new THREE.AmbientLight(0x404040, 1.2));
 
-    const ambient = new THREE.AmbientLight(0x404040, 0.8);
-    scene.add(ambient);
-
-    // 4. Post Processing
+    // 4. Post Processing Stack
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     
-    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.4, 0.85);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.4, 0.9);
     composer.addPass(bloom);
     
     const film = new FilmPass(0.08, 0.02, 648, false);
     composer.addPass(film);
 
-    // 5. Cinematic Path Animation
-    const tl = gsap.timeline();
-    tl.to(camera.position, {
-      z: -100,
-      y: 8,
-      duration: 30,
-      ease: "none",
-      repeat: -1,
-      yoyo: true
-    });
-    
-    gsap.from(".hero-ui", {
-      opacity: 0,
-      y: 40,
-      duration: 2,
-      delay: 0.5,
-      ease: "power4.out"
+    // 5. Drone Glide Path
+    const droneTimeline = gsap.timeline({ repeat: -1, yoyo: true });
+    droneTimeline.to(camera.position, {
+      z: -180,
+      y: 25,
+      x: 60,
+      duration: 35,
+      ease: "sine.inOut"
     });
 
-    // 6. Main Loop
+    gsap.from(".hero-text", {
+      opacity: 0,
+      y: 60,
+      duration: 2.5,
+      delay: 0.8,
+      ease: "expo.out"
+    });
+
+    // 6. Animation Loop
     const clock = new THREE.Clock();
     const animate = () => {
       const time = clock.getElapsedTime();
-      
       terrainMat.uniforms.uTime.value = time;
       grassMat.uniforms.uTime.value = time;
 
-      // Gentle camera sway
-      camera.position.x = Math.sin(time * 0.2) * 5;
-      camera.lookAt(0, 2, -200);
+      // Subtle drone tilt
+      camera.rotation.z = Math.sin(time * 0.15) * 0.02;
+      camera.lookAt(0, 0, -300);
 
       composer.render();
       requestAnimationFrame(animate);
@@ -284,8 +270,8 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   const handleEnter = () => {
     gsap.to(".intro-overlay", { 
       opacity: 0, 
-      scale: 1.1, 
-      duration: 1.5, 
+      scale: 1.15, 
+      duration: 1.8, 
       ease: "power4.inOut",
       onComplete: () => {
         setActive(false);
@@ -297,47 +283,46 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
   if (!active) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black overflow-hidden intro-overlay">
+    <div className="fixed inset-0 z-[9999] bg-[#0A0F0A] overflow-hidden intro-overlay">
       <div ref={containerRef} className="absolute inset-0" />
       
-      {/* Visual Overlays */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+      {/* Cinematic Overlays */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 via-transparent to-black/20" />
 
-      {/* Hero Content */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center hero-ui">
-        <div className="mb-4">
-          <span className="text-[10px] font-black uppercase tracking-[0.5em] text-primary mb-2 block animate-pulse">Ecosystem Uplink Active</span>
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-headline font-black text-white tracking-tighter drop-shadow-2xl">
+      {/* High-End Hero UI */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center hero-text">
+        <div className="mb-6">
+          <span className="text-[11px] font-black uppercase tracking-[0.6em] text-primary mb-3 block animate-pulse">Uplink Established</span>
+          <h1 className="text-6xl md:text-9xl font-headline font-black text-white tracking-tighter drop-shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
             KrishiShield AI
           </h1>
         </div>
         
-        <p className="max-w-2xl text-lg md:text-2xl text-white/80 font-light tracking-tight italic mb-12">
+        <p className="max-w-xl text-lg md:text-2xl text-white/90 font-light tracking-tight italic mb-14 drop-shadow-lg">
           Where Every Field Becomes Intelligent
         </p>
 
         <button 
           onClick={handleEnter}
-          className="pointer-events-auto group relative px-12 py-5 overflow-hidden rounded-full transition-all active:scale-95"
+          className="pointer-events-auto group relative px-14 py-6 overflow-hidden rounded-full transition-all active:scale-95 shadow-2xl"
         >
-          {/* Glass Button Effect */}
-          <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-full" />
-          <div className="absolute inset-0 bg-primary/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+          <div className="absolute inset-0 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full" />
+          <div className="absolute inset-0 bg-primary/25 translate-y-full group-hover:translate-y-0 transition-transform duration-700 ease-expo" />
           
-          <span className="relative z-10 flex items-center gap-3 text-white font-bold uppercase tracking-[0.2em] text-sm">
-            Enter The Field <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          <span className="relative z-10 flex items-center gap-4 text-white font-bold uppercase tracking-[0.3em] text-sm">
+            Enter The Field <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform duration-500" />
           </span>
         </button>
       </div>
 
-      {/* HUD Details */}
-      <div className="absolute bottom-10 left-10 hidden md:block pointer-events-none">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-            <span className="text-[10px] font-code text-white/40 uppercase tracking-widest">Drone Telemetry: 4K_RAW</span>
+      {/* HUD Telemetry */}
+      <div className="absolute bottom-12 left-12 hidden md:block pointer-events-none opacity-40">
+        <div className="flex flex-col gap-2 font-code">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+            <span className="text-[10px] text-white uppercase tracking-widest">Drone Telemetry: Active</span>
           </div>
-          <span className="text-[9px] font-code text-white/20 uppercase tracking-widest ml-3.5">Lat: 18.5204° N | Lon: 73.8567° E</span>
+          <span className="text-[9px] text-white/60 uppercase tracking-[0.2em] ml-5">Altitude: 45m | Vel: 12km/h</span>
         </div>
       </div>
 
@@ -346,7 +331,11 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
           font-family: 'Anybody';
           src: url('https://fonts.googleapis.com/css2?family=Anybody:wght@900&display=swap');
         }
+        .ease-expo {
+          transition-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+        }
       `}</style>
     </div>
   );
 }
+
