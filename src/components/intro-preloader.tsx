@@ -51,6 +51,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0A0D1A);
+    // ATMOSPHERIC DEPTH HAZE
     scene.fog = new THREE.FogExp2(0xB0BEC5, 0.008);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -138,7 +139,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       scene.add(terrace);
     }
 
-    // RICE SHOOTS
+    // RICE SHOOTS (40,000 count)
     const shootCount = 40000;
     const shootGeo = new THREE.CylinderGeometry(0.005, 0.018, 0.3, 3, 4);
     shootGeo.translate(0, 0.15, 0);
@@ -301,30 +302,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     banyanGroup.position.set(-15, 0, -10);
     scene.add(banyanGroup);
 
-    // COCONUT PALMS
-    const palmTrunkGeo = new THREE.CylinderGeometry(0.05, 0.15, 6, 6);
-    palmTrunkGeo.translate(0, 3, 0);
-    const frondGeo = new THREE.PlaneGeometry(3, 0.5, 4, 1);
-    frondGeo.translate(1.5, 0, 0);
-    
-    for (let i = 0; i < 15; i++) {
-      const palm = new THREE.Group();
-      const trunk = new THREE.Mesh(palmTrunkGeo, new THREE.MeshStandardMaterial({ color: 0x3E2723 }));
-      trunk.rotation.z = 0.2;
-      palm.add(trunk);
-      
-      for (let f = 0; f < 9; f++) {
-        const frond = new THREE.Mesh(frondGeo, new THREE.MeshStandardMaterial({ color: 0x1B5E20, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
-        frond.position.y = 6;
-        frond.rotation.y = (f / 9) * Math.PI * 2;
-        frond.rotation.z = -0.5;
-        palm.add(frond);
-      }
-      palm.position.set(10 + Math.random() * 10, 0, -5 - Math.random() * 20);
-      scene.add(palm);
-    }
-
-    // RAIN
+    // RAIN (200,000 drops)
     const rainCount = 200000;
     const rainGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.5, 3);
     const rainMat = new THREE.ShaderMaterial({
@@ -337,10 +315,10 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
           vec4 instancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
           float speed = 18.0 + fract(instancePos.x * 12.3) * 6.0;
           float yOffset = mod(instancePos.y - uTime * speed, 50.0);
-          float xShift = (50.0 - yOffset) * 0.14; 
+          float xShift = (50.0 - yOffset) * 0.14; // SW wind angle (8 deg approx)
           vec3 pos = position;
           vec3 worldPos = instancePos.xyz + vec3(xShift, yOffset - instancePos.y, 0.0);
-          vOpacity = smoothstep(60.0, 20.0, length(instancePos.xz)) * 0.35;
+          vOpacity = smoothstep(80.0, 20.0, length(instancePos.xz)) * 0.35;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos + pos, 1.0);
         }
       `,
@@ -354,7 +332,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     }
     scene.add(rainMesh);
 
-    // RIPPLES
+    // RIPPLES (300 pool)
     const rippleCount = 300;
     const rippleGeo = new THREE.RingGeometry(0.1, 0.12, 32);
     rippleGeo.rotateX(-Math.PI / 2);
@@ -363,16 +341,19 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     scene.add(rippleMesh);
     const ripples = Array.from({ length: rippleCount }, () => ({ active: false, startTime: 0, x: 0, y: 0, z: 0 }));
     let ripplePointer = 0;
+    let hitCounter = 0;
 
-    // GROUND MIST
+    // GROUND MIST (Spec: 6,000 particles, soft edges, 8% opacity)
     const mistCount = 6000;
     const mistPositions = new Float32Array(mistCount * 3);
     const mistVelocities = new Float32Array(mistCount);
+    const mistAlphas = new Float32Array(mistCount); 
     for (let i = 0; i < mistCount; i++) {
-      mistPositions[i * 3] = (Math.random() - 0.5) * 100;
+      mistPositions[i * 3] = (Math.random() - 0.5) * 120;
       mistPositions[i * 3 + 1] = Math.random() * 8; // Valley floor focus
-      mistPositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+      mistPositions[i * 3 + 2] = (Math.random() - 0.5) * 120;
       mistVelocities[i] = 0.001 + Math.random() * 0.003;
+      mistAlphas[i] = 1.0;
     }
     const mistGeo = new THREE.BufferGeometry();
     mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPositions, 3));
@@ -383,12 +364,14 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       vertexShader: `
         uniform float uTime;
         varying float vOpacity;
+        varying float vY;
         void main() {
           vec3 pos = position;
-          pos.x += sin(uTime * 0.5 + position.z) * 0.2;
+          vY = pos.y;
+          pos.x += sin(uTime * 0.5 + position.z) * 0.2; // lateral wind drift
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = 120.0 * (1.0 / -mvPosition.z);
-          vOpacity = 0.08 * (1.0 - (pos.y / 8.0));
+          gl_PointSize = 150.0 * (1.0 / -mvPosition.z);
+          vOpacity = 0.08 * (1.0 - (pos.y / 10.0)); // Fade with height
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -397,18 +380,15 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         void main() {
           float dist = distance(gl_PointCoord, vec2(0.5));
           if (dist > 0.5) discard;
-          gl_FragColor = vec4(1.0, 1.0, 1.0, vOpacity * (1.0 - dist * 2.0));
+          float alpha = vOpacity * (1.0 - dist * 2.0); // radial gradient alpha
+          gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
         }
       `
     });
     const mistParticles = new THREE.Points(mistGeo, mistMat);
     scene.add(mistParticles);
 
-    // CLOUDS
-    const cloudColors = [0x2C3344, 0x4A5568, 0x8899AA, 0xD4DDE8];
-    const cloudSpeeds = [0.002, 0.004, 0.007, 0.011];
-    const cloudAltitudes = [40, 60, 80, 100];
-    const clouds: THREE.Mesh[] = [];
+    // CLOUDS & HORIZON
     const cloudBaseMat = new THREE.ShaderMaterial({
       transparent: true,
       side: THREE.DoubleSide,
@@ -423,18 +403,20 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
           gl_FragColor = vec4(finalColor, alpha * 0.8);
         }`
     });
+    const cloudColors = [0x2C3344, 0x4A5568, 0x8899AA, 0xD4DDE8];
+    const cloudSpeeds = [0.002, 0.004, 0.007, 0.011];
+    const clouds: THREE.Mesh[] = [];
     for (let i = 0; i < 4; i++) {
       const mat = cloudBaseMat.clone();
       mat.uniforms.uColor.value.set(cloudColors[i]);
       mat.uniforms.uSpeed.value = cloudSpeeds[i];
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), mat);
-      mesh.position.y = cloudAltitudes[i];
+      mesh.position.y = 40 + i * 20;
       mesh.rotation.x = Math.PI / 2;
       scene.add(mesh);
       clouds.push(mesh);
     }
 
-    // HORIZON GLOW
     const horizonMat = new THREE.ShaderMaterial({
       transparent: true,
       uniforms: { uC1: { value: new THREE.Color(0x00695C) }, uC2: { value: new THREE.Color(0xFF7043) } },
@@ -445,7 +427,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     horizon.position.set(0, 10, -300);
     scene.add(horizon);
 
-    // LIGHTNING & SHAKE
+    // LIGHTNING
     const lightningState = { flash: 0 };
     let lightningTimer = 15000 + Math.random() * 10000;
     let lastLightningTime = performance.now();
@@ -456,7 +438,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       const t = time * 0.001;
       const now = performance.now();
 
-      // Updates
       terrainMat.uniforms.uTime.value = t;
       waterMat.uniforms.uTime.value = t;
       shootMat.uniforms.uTime.value = t;
@@ -465,11 +446,11 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       bambooMat.uniforms.uTime.value = t;
       mistMat.uniforms.uTime.value = t;
 
-      // Mist Animation
+      // Mist Animation & Impact Respawn
       const posAttr = mistGeo.getAttribute('position') as THREE.BufferAttribute;
       for (let i = 0; i < mistCount; i++) {
         posAttr.setY(i, posAttr.getY(i) + mistVelocities[i]);
-        if (posAttr.getY(i) > 8) posAttr.setY(i, 0);
+        if (posAttr.getY(i) > 10) posAttr.setY(i, 0);
       }
       posAttr.needsUpdate = true;
 
@@ -481,7 +462,6 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         shakeIntensity = 1.0;
       }
 
-      // Camera Reset & Shake
       camera.position.set(0, 8, 15);
       if (shakeIntensity > 0) {
         camera.position.y += Math.sin(t * 50.0) * 0.03 * shakeIntensity;
@@ -489,13 +469,12 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       }
       camera.lookAt(0, 2, -20);
 
-      // Cloud Uniforms
       clouds.forEach(c => {
         (c.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
         (c.material as THREE.ShaderMaterial).uniforms.uFlash.value = lightningState.flash;
       });
 
-      // Ripples update
+      // Ripples & Impact Mist
       for (let i = 0; i < rippleCount; i++) {
         const r = ripples[i];
         if (r.active) {
@@ -511,12 +490,22 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         }
       }
       rippleMesh.instanceMatrix.needsUpdate = true;
+
       if (Math.random() > 0.4) {
         const rx = (Math.random() - 0.5) * 60;
         const rz = (Math.random() - 0.5) * 80 - 30;
         const r = ripples[ripplePointer];
         r.active = true; r.startTime = now; r.x = rx; r.y = 1.0; r.z = rz;
         ripplePointer = (ripplePointer + 1) % rippleCount;
+        
+        hitCounter++;
+        // Rain mist on impact (every 50th drop hit, spawn 3 particles)
+        if (hitCounter % 50 === 0) {
+          for(let m = 0; m < 3; m++) {
+             const mIdx = (hitCounter + m) % mistCount;
+             posAttr.setXYZ(mIdx, rx + (Math.random()-0.5), 1.0, rz + (Math.random()-0.5));
+          }
+        }
       }
 
       renderer.render(scene, camera);
