@@ -188,6 +188,144 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     }
     scene.add(riceMesh);
 
+    // TREELINE (50,000 Forest Trees)
+    const trunkGeo = new THREE.CylinderGeometry(0.02, 0.05, 1.2, 4);
+    trunkGeo.translate(0, 0.6, 0);
+    const leafClusterGeo = new THREE.SphereGeometry(0.4, 5, 4);
+    leafClusterGeo.translate(0, 1.2, 0);
+    
+    // Merge geometries for instanced mesh
+    const treeGeo = trunkGeo.clone();
+    treeGeo.mergeGeometries([trunkGeo, leafClusterGeo]);
+    
+    const treeMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        varying vec3 vColor;
+        varying float vY;
+        void main() {
+          vY = position.y;
+          vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+          float sway = sin(uTime * 0.8 + worldPos.x * 0.1) * 0.05 * position.y;
+          vec3 pos = position;
+          pos.x += sway;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vY;
+        void main() {
+          vec3 trunkColor = vec3(0.17, 0.09, 0.06);
+          vec3 leafColor = vec3(0.1, 0.37, 0.12);
+          vec3 highlights = vec3(0.64, 0.84, 0.65);
+          vec3 color = vY < 0.9 ? trunkColor : mix(leafColor, highlights, step(0.95, sin(vY * 10.0)));
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `
+    });
+
+    const forestMesh = new THREE.InstancedMesh(treeGeo, treeMat, 50000);
+    for (let i = 0; i < 50000; i++) {
+      const rx = (Math.random() - 0.5) * 200;
+      const rz = (Math.random() - 0.5) * 200;
+      // Position only on slopes
+      if (Math.abs(rx) < 20 && rz > -60 && rz < 30) continue; 
+      
+      const rh = 1.0 + Math.random() * 2.0;
+      dummy.position.set(rx, rh - 2.0, rz);
+      dummy.rotation.y = Math.random() * Math.PI;
+      dummy.scale.setScalar(0.8 + Math.random() * 1.5);
+      dummy.updateMatrix();
+      forestMesh.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(forestMesh);
+
+    // BAMBOO CLUSTERS
+    const bambooGeo = new THREE.CylinderGeometry(0.01, 0.04, 8, 5);
+    bambooGeo.translate(0, 4, 0);
+    const bambooMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        varying float vY;
+        uniform float uTime;
+        void main() {
+          vY = position.y;
+          vec3 pos = position;
+          float sway = sin(uTime * 1.2 + instanceMatrix[3][0] * 0.5) * 0.8 * (vY / 8.0);
+          pos.x += sway;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vY;
+        void main() {
+          vec3 color = vec3(0.33, 0.54, 0.18);
+          float nodes = step(0.9, fract(vY * 2.0));
+          gl_FragColor = vec4(mix(color, color * 0.5, nodes), 1.0);
+        }
+      `
+    });
+    const bambooMesh = new THREE.InstancedMesh(bambooGeo, bambooMat, 400);
+    let bIdx = 0;
+    for (let c = 0; i < 20; i++) {
+      const cx = (Math.random() - 0.5) * 100;
+      const cz = (Math.random() - 0.5) * 100 - 50;
+      for (let j = 0; j < 20; j++) {
+        dummy.position.set(cx + (Math.random() - 0.5) * 3, 0, cz + (Math.random() - 0.5) * 3);
+        dummy.rotation.y = Math.random() * Math.PI;
+        dummy.scale.set(1, 0.8 + Math.random() * 0.4, 1);
+        dummy.updateMatrix();
+        bambooMesh.setMatrixAt(bIdx++, dummy.matrix);
+      }
+    }
+    scene.add(bambooMesh);
+
+    // BANYAN TREE (Hero)
+    const banyanGroup = new THREE.Group();
+    const gnarledTrunkGeo = new THREE.CylinderGeometry(0.4, 0.8, 6, 6);
+    const banyanTrunk = new THREE.Mesh(gnarledTrunkGeo, new THREE.MeshStandardMaterial({ color: 0x2C1810 }));
+    banyanTrunk.position.y = 3;
+    banyanGroup.add(banyanTrunk);
+
+    // Aerial Roots
+    for (let i = 0; i < 40; i++) {
+      const angle = (i / 40) * Math.PI * 2;
+      const rootGeo = new THREE.CylinderGeometry(0.02, 0.02, 5, 4);
+      rootGeo.translate(0, -2.5, 0);
+      const root = new THREE.Mesh(rootGeo, new THREE.MeshStandardMaterial({ color: 0x1A0F0A }));
+      root.position.set(Math.cos(angle) * 2, 5, Math.sin(angle) * 2);
+      root.rotation.z = (Math.random() - 0.5) * 0.2;
+      banyanGroup.add(root);
+    }
+    const banyanCanopy = new THREE.Mesh(new THREE.SphereGeometry(4, 8, 8), new THREE.MeshStandardMaterial({ color: 0x0A260C }));
+    banyanCanopy.position.y = 6;
+    banyanGroup.add(banyanCanopy);
+    banyanGroup.position.set(-15, 0, -10);
+    scene.add(banyanGroup);
+
+    // COCONUT PALMS
+    const palmTrunkGeo = new THREE.CylinderGeometry(0.05, 0.15, 6, 6);
+    palmTrunkGeo.translate(0, 3, 0);
+    const frondGeo = new THREE.PlaneGeometry(3, 0.5, 4, 1);
+    frondGeo.translate(1.5, 0, 0);
+    
+    for (let i = 0; i < 15; i++) {
+      const palm = new THREE.Group();
+      const trunk = new THREE.Mesh(palmTrunkGeo, new THREE.MeshStandardMaterial({ color: 0x3E2723 }));
+      trunk.rotation.z = 0.2;
+      palm.add(trunk);
+      
+      for (let f = 0; f < 9; f++) {
+        const frond = new THREE.Mesh(frondGeo, new THREE.MeshStandardMaterial({ color: 0x1B5E20, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+        frond.position.y = 6;
+        frond.rotation.y = (f / 9) * Math.PI * 2;
+        frond.rotation.z = -0.5;
+        palm.add(frond);
+      }
+      palm.position.set(10 + Math.random() * 10, 0, -5 - Math.random() * 20);
+      scene.add(palm);
+    }
+
     // RAIN
     const rainCount = 200000;
     const rainGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.5, 3);
@@ -285,6 +423,8 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       waterMat.uniforms.uTime.value = t;
       shootMat.uniforms.uTime.value = t;
       rainMat.uniforms.uTime.value = t;
+      treeMat.uniforms.uTime.value = t;
+      bambooMat.uniforms.uTime.value = t;
 
       // Lightning Logic
       if (now - lastLightningTime > lightningTimer) {
