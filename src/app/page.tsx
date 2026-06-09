@@ -3,14 +3,12 @@
 import { useEffect } from 'react';
 
 /**
- * Root route serves as a redirect to the standalone cinematic WebGL landing page.
- * This file (monsoon_landing.html) is located in the public directory and
- * handles its own high-fidelity rendering lifecycle.
+ * Root route serves as a redirect to the continuous 3D valley landing page.
+ * This file (monsoon_landing.html) handles the cinematic WebGL environment.
  */
 export default function LandingRedirect() {
   useEffect(() => {
-    // Direct replacement of location ensures we bypass standard React hydration
-    // for the heavy WebGL experience.
+    // Instant redirect to the high-performance WebGL environment
     window.location.replace('/monsoon_landing.html');
   }, []);
 
