@@ -30,7 +30,7 @@ const TerrainShader = {
 
     // Classic Perlin Noise
     vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
-    vec2 fade(vec2 t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
+    float fade(float t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
     float cnoise(vec2 P){
       vec4 Pi = floor(P.xyxy) + vec4(0.0, 0.0, 1.0, 1.0);
       vec4 Pf = fract(P.xyxy) - vec4(0.0, 0.0, 1.0, 1.0);
@@ -194,14 +194,12 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
     
     const dummy = new THREE.Object3D();
-    const offsets = new Float32Array(grassCount * 3);
     const phases = new Float32Array(grassCount);
 
     for (let i = 0; i < grassCount; i++) {
       const x = (Math.random() - 0.5) * 400;
       const z = (Math.random() - 0.5) * 400;
       
-      // Simplified height matching (ideal would be sampling terrain noise)
       const y = 0; 
       
       dummy.position.set(x, y, z);
