@@ -347,13 +347,11 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const mistCount = 6000;
     const mistPositions = new Float32Array(mistCount * 3);
     const mistVelocities = new Float32Array(mistCount);
-    const mistAlphas = new Float32Array(mistCount); 
     for (let i = 0; i < mistCount; i++) {
       mistPositions[i * 3] = (Math.random() - 0.5) * 120;
       mistPositions[i * 3 + 1] = Math.random() * 8; // Valley floor focus
       mistPositions[i * 3 + 2] = (Math.random() - 0.5) * 120;
       mistVelocities[i] = 0.001 + Math.random() * 0.003;
-      mistAlphas[i] = 1.0;
     }
     const mistGeo = new THREE.BufferGeometry();
     mistGeo.setAttribute('position', new THREE.BufferAttribute(mistPositions, 3));
@@ -540,7 +538,10 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <h1 className="text-white/10 text-4xl font-headline font-black uppercase tracking-[1em] mb-8">KrishiShield AI</h1>
-        <button onClick={handleEnter} className="pointer-events-auto px-12 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-white/40 text-xs font-bold uppercase tracking-[0.4em] transition-all active:scale-95">
+        <button 
+          onClick={handleEnter} 
+          className="pointer-events-auto px-12 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-white/40 text-xs font-bold uppercase tracking-[0.4em] transition-all active:scale-95 backdrop-blur-md"
+        >
           Initialize App
         </button>
       </div>
