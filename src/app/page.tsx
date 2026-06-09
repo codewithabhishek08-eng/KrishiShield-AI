@@ -1,57 +1,24 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
-import { AppShell } from '@/components/app-shell';
-import { Dashboard } from '@/components/dashboard';
-import { MarketScreen } from '@/components/market';
-import { SatelliteScreen } from '@/components/satellite';
-import { FinanceScreen } from '@/components/finance';
-import { ProfileScreen } from '@/components/profile';
-import { ProfileBanner } from '@/components/profile-banner';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+/**
+ * Root route serves as a redirect to the cinematic landing page.
+ * This ensures the immersive experience is the first touchpoint.
+ */
+export default function LandingRedirect() {
+  const router = useRouter();
 
   useEffect(() => {
-    const handleSetTab = (e: any) => {
-      if (e.detail) setActiveTab(e.detail);
-    };
-    window.addEventListener('setActiveTab', handleSetTab);
-    return () => window.removeEventListener('setActiveTab', handleSetTab);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) entry.target.classList.add('visible');
-        });
-      }, { threshold: 0.1 });
-
-      document.querySelectorAll('.animate-in').forEach((el, index) => {
-        (el as HTMLElement).style.transitionDelay = `${index * 80}ms`;
-        observer.observe(el);
-      });
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [activeTab]);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
-      case 'market': return <MarketScreen />;
-      case 'satellite': return <SatelliteScreen />;
-      case 'finance': return <FinanceScreen />;
-      case 'profile': return <ProfileScreen />;
-      default: return <Dashboard />;
-    }
-  };
+    // Check if user has already entered the app today to skip cinematic if needed
+    // For now, always show the monsoon landing for maximum impact
+    router.replace('/monsoon_landing.html');
+  }, [router]);
 
   return (
-    <AppShell activeTab={activeTab} setActiveTab={setActiveTab}>
-      <ProfileBanner />
-      {renderContent()}
-    </AppShell>
+    <div className="min-h-screen bg-[#050F08] flex items-center justify-center">
+      <div className="w-12 h-12 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+    </div>
   );
 }
