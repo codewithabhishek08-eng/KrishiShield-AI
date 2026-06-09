@@ -7,7 +7,7 @@ import { gsap } from 'gsap';
 
 /**
  * KrishiShield AI — Ancient Indian Monsoon Valley Landing
- * Step 3: 40,000 Instanced Rice Shoots with Wind Dynamics
+ * Step 4: 200,000 Instanced Rain Streaks & Dynamic Ripple Pool
  */
 
 export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
@@ -43,8 +43,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     dirLight.position.set(10, 5, 10); 
     scene.add(dirLight);
 
-    // 5. TERRAIN & WATER SHADERS
-    
+    // 5. TERRAIN SHADER
     const noiseHelpers = `
       vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
       vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -113,6 +112,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     const terrain = new THREE.Mesh(terrainGeo, terrainMat);
     scene.add(terrain);
 
+    // WATER SHADER
     const waterMat = new THREE.ShaderMaterial({
       transparent: true,
       uniforms: {
@@ -126,7 +126,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
           vUv = uv;
           vec3 pos = position;
           float angle = pos.x * 2.0 + pos.z * 1.5 + uTime * 1.5;
-          pos.y += sin(angle) * 0.01;
+          pos.y += sin(angle) * 0.008;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
@@ -136,18 +136,34 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         uniform float uTime;
         void main() {
           float shimmer = sin(vUv.x * 20.0 + uTime) * 0.03;
-          gl_FragColor = vec4(uColor + shimmer, 0.8);
+          gl_FragColor = vec4(uColor + shimmer, 0.9);
         }
       `
     });
 
+    const terraceGeo = new THREE.PlaneGeometry(30, 40);
+    terraceGeo.rotateX(-Math.PI / 2);
+    const terraceCount = 5;
+
+    for (let i = 0; i < terraceCount; i++) {
+      const paddyY = 3 - i * 1.5;
+      const paddyZ = -20 - i * 10;
+      const terrace = new THREE.Mesh(terraceGeo, waterMat);
+      terrace.position.set(0, paddyY, paddyZ);
+      scene.add(terrace);
+
+      const bundGeo = new THREE.BoxGeometry(32, 0.5, 42);
+      const bundMat = new THREE.MeshStandardMaterial({ color: 0x2C1810 });
+      const bund = new THREE.Mesh(bundGeo, bundMat);
+      bund.position.set(0, paddyY - 0.2, paddyZ);
+      scene.add(bund);
+    }
+
     // 6. RICE SHOOTS (INSTANCED)
     const shootCount = 40000;
-    const terraceCount = 5;
     const shootsPerTerrace = shootCount / terraceCount;
-    
     const shootGeo = new THREE.CylinderGeometry(0.005, 0.018, 0.3, 3, 4);
-    shootGeo.translate(0, 0.15, 0); // Pivot at bottom
+    shootGeo.translate(0, 0.15, 0);
 
     const shootMat = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
@@ -160,22 +176,15 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         varying vec2 vUv;
         varying float vY;
         uniform float uTime;
-        
         void main() {
           vUv = uv;
           vY = position.y;
-          
-          // Get world position of the instance
           vec4 worldInstancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-          
-          // Wind sway logic
           float wind = sin(uTime * 1.8 + worldInstancePos.x * 0.5 + worldInstancePos.z * 0.4) * 0.06;
-          wind *= (position.y + 0.15) / 0.3; // Sway increases with height
-          
+          wind *= (position.y + 0.15) / 0.3;
           vec3 pos = position;
           pos.x += wind;
           pos.z += wind * 0.5;
-          
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
         }
       `,
@@ -183,9 +192,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         varying vec2 vUv;
         varying float vY;
         uniform vec3 uColor;
-        
         void main() {
-          // Subsurface scattering simulation
           float grad = smoothstep(-0.15, 0.15, vY);
           vec3 baseColor = mix(uColor * 0.5, uColor, grad);
           gl_FragColor = vec4(baseColor, 0.9);
@@ -195,36 +202,17 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
 
     const riceMesh = new THREE.InstancedMesh(shootGeo, shootMat, shootCount);
     const dummy = new THREE.Object3D();
-    const terraceGeo = new THREE.PlaneGeometry(30, 40);
-    terraceGeo.rotateX(-Math.PI / 2);
-
     let currentIdx = 0;
     for (let i = 0; i < terraceCount; i++) {
       const paddyY = 3 - i * 1.5;
       const paddyZ = -20 - i * 10;
-      
-      const terrace = new THREE.Mesh(terraceGeo, waterMat);
-      terrace.position.set(0, paddyY, paddyZ);
-      scene.add(terrace);
-
-      const bundGeo = new THREE.BoxGeometry(32, 0.5, 42);
-      const bundMat = new THREE.MeshStandardMaterial({ color: 0x2C1810 });
-      const bund = new THREE.Mesh(bundGeo, bundMat);
-      bund.position.set(0, paddyY - 0.2, paddyZ);
-      scene.add(bund);
-
-      // Place shoots for this terrace
-      const gridX = 100; // rows
-      const gridZ = 80; // cols
+      const gridZ = 80;
       const spacing = 0.25;
-
       for (let s = 0; s < shootsPerTerrace; s++) {
         const row = Math.floor(s / gridZ);
         const col = s % gridZ;
-        
         const x = (col - gridZ / 2) * spacing + (Math.random() - 0.5) * 0.1;
-        const z = (row - gridX / 4) * spacing + (Math.random() - 0.5) * 0.1;
-        
+        const z = (row - 25) * spacing + (Math.random() - 0.5) * 0.1;
         dummy.position.set(x, paddyY, paddyZ + z);
         dummy.rotation.y = Math.random() * Math.PI;
         dummy.updateMatrix();
@@ -233,20 +221,132 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
     }
     scene.add(riceMesh);
 
-    // 7. RENDER LOOP
+    // 7. RAIN SYSTEM (200,000 Instanced)
+    const rainCount = 200000;
+    const rainGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.5, 3);
+    const rainMat = new THREE.ShaderMaterial({
+      transparent: true,
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0xFFFFFF) }
+      },
+      vertexShader: `
+        uniform float uTime;
+        varying float vOpacity;
+        void main() {
+          vec4 instancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          
+          // Custom speed and fall logic
+          float speed = 18.0 + fract(instancePos.x * 12.3) * 6.0;
+          float yOffset = mod(instancePos.y - uTime * speed, 50.0);
+          
+          // Southwest monsoon angle (approx 8 degrees)
+          float xShift = (50.0 - yOffset) * 0.14; 
+          
+          vec3 pos = position;
+          vec3 worldPos = instancePos.xyz + vec3(xShift, yOffset - instancePos.y, 0.0);
+          
+          // Density variation (heavier in center)
+          float dist = length(instancePos.xz);
+          vOpacity = smoothstep(60.0, 20.0, dist) * 0.35;
+          
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos + pos, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying float vOpacity;
+        uniform vec3 uColor;
+        void main() {
+          gl_FragColor = vec4(uColor, vOpacity);
+        }
+      `
+    });
+
+    const rainMesh = new THREE.InstancedMesh(rainGeo, rainMat, rainCount);
+    for (let i = 0; i < rainCount; i++) {
+      dummy.position.set(
+        (Math.random() - 0.5) * 120,
+        Math.random() * 50,
+        (Math.random() - 0.5) * 120
+      );
+      dummy.updateMatrix();
+      rainMesh.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(rainMesh);
+
+    // 8. RIPPLE POOL (300 Rings)
+    const rippleCount = 300;
+    const rippleGeo = new THREE.RingGeometry(0.1, 0.12, 32);
+    rippleGeo.rotateX(-Math.PI / 2);
+    const rippleMat = new THREE.MeshBasicMaterial({
+      color: 0xFFFFFF,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide
+    });
+    const rippleMesh = new THREE.InstancedMesh(rippleGeo, rippleMat, rippleCount);
+    scene.add(rippleMesh);
+
+    const ripples = Array.from({ length: rippleCount }, () => ({
+      active: false,
+      startTime: 0,
+      x: 0, y: 0, z: 0
+    }));
+
+    let ripplePointer = 0;
+    const spawnRipple = (x: number, y: number, z: number) => {
+      const r = ripples[ripplePointer];
+      r.active = true;
+      r.startTime = performance.now();
+      r.x = x; r.y = y; r.z = z;
+      ripplePointer = (ripplePointer + 1) % rippleCount;
+    };
+
+    // 9. RENDER LOOP
     let animationFrameId: number;
     const animate = (time: number) => {
       const t = time * 0.001;
       terrainMat.uniforms.uTime.value = t;
       waterMat.uniforms.uTime.value = t;
       shootMat.uniforms.uTime.value = t;
+      rainMat.uniforms.uTime.value = t;
+
+      // Update ripples
+      const now = performance.now();
+      for (let i = 0; i < rippleCount; i++) {
+        const r = ripples[i];
+        if (r.active) {
+          const age = now - r.startTime;
+          if (age > 800) {
+            r.active = false;
+            dummy.scale.set(0, 0, 0);
+          } else {
+            const p = age / 800;
+            const s = p * 1.8;
+            dummy.position.set(r.x, r.y + 0.01, r.z);
+            dummy.scale.set(s, s, s);
+            // Opacity is handled by updating the color or just being simple for now
+          }
+          dummy.updateMatrix();
+          rippleMesh.setMatrixAt(i, dummy.matrix);
+        }
+      }
+      rippleMesh.instanceMatrix.needsUpdate = true;
+
+      // Randomly spawn ripples to simulate rain hits
+      if (Math.random() > 0.4) {
+        const rx = (Math.random() - 0.5) * 60;
+        const rz = (Math.random() - 0.5) * 80 - 30;
+        // Find which terrace height this X,Z is over (simplification)
+        spawnRipple(rx, 1.0, rz); 
+      }
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);
     };
     animate(0);
 
-    // 8. WINDOW RESIZE HANDLER
+    // 10. WINDOW RESIZE HANDLER
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -276,7 +376,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
       <div ref={containerRef} className="absolute inset-0" />
       
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <h1 className="text-white/20 text-4xl font-headline font-black uppercase tracking-[1em] mb-8">
+        <h1 className="text-white/10 text-4xl font-headline font-black uppercase tracking-[1em] mb-8">
           KrishiShield AI
         </h1>
         <button 
