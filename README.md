@@ -16,7 +16,7 @@
   KrishiShield AI turns agriculture from a high-stakes
   gamble into a data-driven enterprise.
 
-  Live Demo   : https://krishishield.ai
+  Live Demo   : https://krishi-shield-ai.vercel.app/
   License     : MIT
   Version     : 2.0.0
 
