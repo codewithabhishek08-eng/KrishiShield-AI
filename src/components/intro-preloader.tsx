@@ -117,6 +117,7 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         uSunDir: { value: dirLight.position.clone().normalize() }
       },
       vertexShader: `
+        uniform float uTime;
         varying vec2 vUv;
         varying float vHeight;
         varying vec3 vNormal;
@@ -182,17 +183,18 @@ export function IntroPreloader({ onComplete }: { onComplete: () => void }) {
         uCameraPos: { value: camera.position }
       },
       vertexShader: `
+        uniform float uTime;
         varying vec3 vWorldPos;
         varying vec3 vNormal;
         void main() {
           vec3 pos = position;
-          float w = sin(pos.x * 2.0 + time * 1.5) * 0.004;
+          float w = sin(pos.x * 2.0 + uTime * 1.5) * 0.004;
           pos.y += w;
           vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
           vNormal = normalize(normalMatrix * normal);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
-      `.replace('time', 'uTime'),
+      `,
       fragmentShader: `
         varying vec3 vWorldPos;
         varying vec3 vNormal;
