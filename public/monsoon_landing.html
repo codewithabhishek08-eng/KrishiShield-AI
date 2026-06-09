@@ -6,21 +6,12 @@
     <title>KrishiShield AI | Monsoon Genesis</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,900;1,900&family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
-                "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.2/index.js"
-            }
-        }
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,900;1,900&family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #81C784;
-            --background: #0A0D1A;
-            --text: #E8F5E9;
+            --accent: #FF7043;
+            --bg: #0A0D1A;
         }
 
         body, html {
@@ -29,42 +20,54 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: var(--background);
-            color: var(--text);
+            background-color: var(--bg);
             font-family: 'Inter', sans-serif;
-            cursor: none;
+            color: white;
         }
 
-        canvas {
-            display: block;
+        #canvas-container {
             position: fixed;
             top: 0;
             left: 0;
+            width: 100vw;
+            height: 100vh;
             z-index: 0;
         }
 
-        #ui {
+        .overlay {
             position: relative;
             z-index: 10;
-            width: 100%;
-            height: 100%;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            pointer-events: none;
+            align-items: center;
             text-align: center;
-            opacity: 0;
+            background: radial-gradient(circle at center, transparent 0%, rgba(10, 13, 26, 0.4) 100%);
+            pointer-events: none;
         }
 
-        .hindi {
+        .content {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+            pointer-events: auto;
+        }
+
+        .content.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        h2 {
             font-family: 'Anybody', sans-serif;
             font-weight: 900;
             font-style: italic;
-            font-size: clamp(1.2rem, 4vw, 2rem);
-            color: rgba(129, 199, 132, 0.7);
-            letter-spacing: 0.1em;
-            margin-bottom: 0.5rem;
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            margin: 0;
+            color: rgba(129, 199, 132, 0.8);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
         }
 
         h1 {
@@ -72,289 +75,361 @@
             font-weight: 900;
             font-style: italic;
             font-size: clamp(3rem, 10vw, 7rem);
-            margin: 0;
-            background: linear-gradient(to bottom, #FFFFFF, #81C784);
+            margin: 10px 0;
+            line-height: 0.9;
+            background: linear-gradient(to bottom, #fff, #81C784);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 40px rgba(129, 199, 132, 0.3);
+            filter: drop-shadow(0 0 30px rgba(129, 199, 132, 0.3));
         }
 
-        .tagline {
-            font-size: clamp(1rem, 2.5vw, 1.4rem);
+        p {
+            font-size: clamp(1rem, 2vw, 1.2rem);
             font-weight: 300;
-            color: rgba(232, 245, 233, 0.6);
-            letter-spacing: 0.05em;
-            margin-top: 1rem;
+            color: rgba(255, 255, 255, 0.6);
             max-width: 600px;
+            margin: 20px auto 40px;
+            letter-spacing: 0.05em;
         }
 
-        .cta-container {
-            margin-top: 3rem;
-            pointer-events: auto;
-        }
-
-        .lotus-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 20px 40px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease;
-        }
-
-        .lotus-btn:hover {
-            transform: scale(1.05);
-        }
-
-        .lotus-btn span {
-            position: relative;
-            z-index: 2;
+        .btn {
+            background: linear-gradient(135deg, #1B5E20, #2E7D32);
+            color: white;
+            padding: 18px 48px;
+            border-radius: 50px;
+            text-decoration: none;
             font-weight: 700;
+            font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 0.2em;
-            font-size: 14px;
-            color: white;
+            border: 1px solid rgba(129, 199, 132, 0.3);
+            transition: all 0.4s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            display: inline-block;
         }
 
-        .lotus-svg {
-            position: absolute;
+        .btn:hover {
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 15px 40px rgba(129, 199, 132, 0.2);
+            border-color: rgba(129, 199, 132, 0.6);
+        }
+
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            fill: #1B5E20;
-            filter: drop-shadow(0 0 15px rgba(27, 94, 32, 0.5));
-            transition: fill 0.3s ease;
+            background: #0A0D1A;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 1s ease;
         }
 
-        .lotus-btn:hover .lotus-svg {
-            fill: #2E7D32;
-        }
-
-        #custom-cursor {
-            position: fixed;
+        .loader-spinner {
             width: 40px;
             height: 40px;
-            border: 2px solid rgba(129, 199, 132, 0.4);
+            border: 2px solid rgba(129, 199, 132, 0.1);
+            border-top-color: var(--primary);
             border-radius: 50%;
-            pointer-events: none;
-            z-index: 9999;
-            transform: translate(-50%, -50%);
-            transition: width 0.3s, height 0.3s, border-color 0.3s;
+            animation: spin 1s linear infinite;
         }
 
-        .performance-tag {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            opacity: 0.3;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div id="custom-cursor"></div>
-    <div id="ui">
-        <div class="hindi">मानसून आया।</div>
-        <h1>KrishiShield AI</h1>
-        <div class="tagline">Turn every raindrop into revenue. Protection that grows with you.</div>
-        <div class="cta-container">
-            <button class="lotus-btn" onclick="enterApp()">
-                <svg class="lotus-svg" viewBox="0 0 100 100">
-                    <path d="M50 10 C60 40 90 50 50 90 C10 50 40 40 50 10 Z" />
-                    <path d="M50 10 C70 30 95 60 50 90 C5 60 30 30 50 10 Z" opacity="0.6" />
-                </svg>
-                <span>Enter the Field</span>
-            </button>
+    <div id="loader" class="loader">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div class="overlay">
+        <div id="content" class="content">
+            <h2>मानसून की पुकार</h2>
+            <h1>KrishiShield AI</h1>
+            <p>Predicting nature's next move to protect your harvest. Every drop counts, every decision matters.</p>
+            <a href="/dashboard" class="btn">Enter the Field</a>
         </div>
     </div>
-    <div class="performance-tag" id="perf">Ultra Tier</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
 
     <script type="module">
         import * as THREE from 'three';
-        import { gsap } from 'gsap';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- CORE VARIABLES ---
+        // --- Configuration & State ---
+        const config = {
+            rainCount: 15000,
+            birdCount: 50,
+            treeCount: 500,
+            cloudCount: 8
+        };
+
         let scene, camera, renderer, clock;
-        let rain, water, terrain, rice, forest, sky;
-        let creationRipple = { radius: 0 };
-        const mouse = new THREE.Vector2();
-
-        // --- SHADERS ---
-        const TERRAIN_VS = `
-            varying vec2 vUv;
-            varying float vHeight;
-            uniform float uCreationTime;
-            
-            float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-            float noise(vec2 p) {
-                vec2 i = floor(p); vec2 f = fract(p);
-                vec2 u = f * f * (3.0 - 2.0 * f);
-                return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), u.x),
-                           mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), u.x), u.y);
-            }
-
-            void main() {
-                vUv = uv;
-                vec3 pos = position;
-                float h = noise(uv * 1.5) * 4.0;
-                h += noise(uv * 8.0) * 0.5;
-                
-                // Distant hills
-                float dist = length(pos.xz);
-                h += smoothstep(40.0, 150.0, dist) * 20.0;
-                
-                // Genesis outward effect
-                float ripple = smoothstep(uCreationTime - 20.0, uCreationTime, dist);
-                pos.y += h * (1.0 - ripple);
-                
-                vHeight = pos.y;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-            }
-        `;
-
-        const TERRAIN_FS = `
-            varying vec2 vUv;
-            varying float vHeight;
-            void main() {
-                vec3 waterCol = vec3(0.04, 0.12, 0.06);
-                vec3 soilCol = vec3(0.1, 0.18, 0.08);
-                vec3 bundCol = vec3(0.16, 0.25, 0.12);
-                
-                vec3 color = mix(waterCol, soilCol, smoothstep(0.0, 1.5, vHeight));
-                color = mix(color, bundCol, smoothstep(1.5, 3.0, vHeight));
-                
-                gl_FragColor = vec4(color, 1.0);
-            }
-        `;
-
-        const WATER_FS = `
-            uniform float uTime;
-            uniform vec3 uColor;
-            varying vec2 vUv;
-            void main() {
-                float pulse = sin(uTime * 0.5 + vUv.x * 10.0 + vUv.y * 10.0) * 0.02;
-                vec3 color = uColor + pulse;
-                gl_FragColor = vec4(color, 0.85);
-            }
-        `;
-
-        // --- INITIALIZATION ---
+        let rainParticles, birdInstances, valley, clouds = [];
+        
+        // --- Initialization ---
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0A0D1A);
-            scene.fog = new THREE.FogExp2(0x0A0D1A, 0.012);
+            scene.background = new THREE.Color(0x0a0d1a);
+            scene.fog = new THREE.FogExp2(0x0d1a14, 0.01);
 
-            camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 3, 12);
-            camera.rotation.x = -0.1;
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 20);
+            camera.lookAt(0, 2, 0);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             clock = new THREE.Clock();
 
-            createTerrain();
-            createWater();
+            createLighting();
+            createValley();
             createRain();
-            createLights();
-            
-            window.addEventListener('resize', onWindowResize);
-            window.addEventListener('mousemove', onMouseMove);
+            createClouds();
+            createBirds();
 
-            startGenesis();
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start the reveal
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('content').classList.add('visible');
+            }, 1000);
+
             animate();
         }
 
-        function createTerrain() {
-            const geo = new THREE.PlaneGeometry(300, 300, 256, 256);
-            geo.rotateX(-Math.PI / 2);
-            const mat = new THREE.ShaderMaterial({
-                uniforms: { uCreationTime: { value: 0 } },
-                vertexShader: TERRAIN_VS,
-                fragmentShader: TERRAIN_FS
-            });
-            terrain = new THREE.Mesh(geo, mat);
-            scene.add(terrain);
+        // --- Scene Elements ---
+
+        function createLighting() {
+            const ambient = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambient);
+
+            const hemi = new THREE.HemisphereLight(0x81c784, 0x0a0d1a, 0.6);
+            scene.add(hemi);
+
+            const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+            sun.position.set(50, 100, -50);
+            scene.add(sun);
         }
 
-        function createWater() {
-            const geo = new THREE.PlaneGeometry(300, 300);
-            geo.rotateX(-Math.PI / 2);
-            const mat = new THREE.ShaderMaterial({
-                uniforms: { 
-                    uTime: { value: 0 },
-                    uColor: { value: new THREE.Color(0x0A1A14) }
-                },
-                vertexShader: `
-                    varying vec2 vUv;
-                    void main() {
-                        vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `,
-                fragmentShader: WATER_FS,
-                transparent: true
+        function createValley() {
+            const geometry = new THREE.PlaneGeometry(300, 300, 128, 128);
+            geometry.rotateX(-Math.PI / 2);
+
+            const position = geometry.attributes.position;
+            for (let i = 0; i < position.count; i++) {
+                const x = position.getX(i);
+                const z = position.getZ(i);
+                
+                // Create a valley shape: center is low, edges are high
+                const dist = Math.sqrt(x * x + z * z);
+                const height = Math.pow(dist / 50, 2) * 5;
+                
+                // Add some noise for mountain texture
+                const noise = (Math.sin(x * 0.1) * Math.cos(z * 0.1)) * 2;
+                const detail = (Math.sin(x * 0.5) * Math.sin(z * 0.5)) * 0.5;
+                
+                position.setY(i, height + noise + detail);
+            }
+            geometry.computeVertexNormals();
+
+            const material = new THREE.MeshPhongLight({
+                color: 0x1a3a1a,
+                shininess: 0,
+                flatShading: false
             });
-            water = new THREE.Mesh(geo, mat);
-            water.position.y = 0.05;
-            scene.add(water);
+
+            // Use a simple shader-like material for lush greenery
+            const customMaterial = new THREE.MeshStandardMaterial({
+                color: 0x228B22,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+
+            valley = new THREE.Mesh(geometry, customMaterial);
+            scene.add(valley);
         }
 
         function createRain() {
-            const count = 100000;
-            const geo = new THREE.BufferGeometry();
-            const pos = new Float32Array(count * 3);
-            for(let i=0; i<count*3; i+=3) {
-                pos[i] = (Math.random() - 0.5) * 200;
-                pos[i+1] = Math.random() * 100;
-                pos[i+2] = (Math.random() - 0.5) * 200;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(config.rainCount * 3);
+            const velocities = new Float32Array(config.rainCount);
+
+            for (let i = 0; i < config.rainCount; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 200;
+                positions[i * 3 + 1] = Math.random() * 100;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 200;
+                velocities[i] = 0.5 + Math.random() * 0.5;
             }
-            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             
-            const mat = new THREE.PointsMaterial({
-                color: 0x81C784,
-                size: 0.1,
+            const material = new THREE.PointsMaterial({
+                color: 0xaaaaaa,
+                size: 0.15,
                 transparent: true,
                 opacity: 0.4
             });
-            rain = new THREE.Points(geo, mat);
-            scene.add(rain);
+
+            rainParticles = new THREE.Points(geometry, material);
+            rainParticles.userData.velocities = velocities;
+            scene.add(rainParticles);
         }
 
-        function createLights() {
-            const hemi = new THREE.HemisphereLight(0x0D0D1A, 0x1B5E20, 0.6);
-            scene.add(hemi);
+        function createClouds() {
+            const loader = new THREE.TextureLoader();
+            // Using a simple circular gradient as a cloud texture fallback if CDN fails
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 128, 128);
+            const texture = new THREE.CanvasTexture(canvas);
 
-            const dir = new THREE.DirectionalLight(0xFF7043, 0.3);
-            dir.position.set(5, 5, 5);
-            scene.add(dir);
+            for (let i = 0; i < config.cloudCount; i++) {
+                const material = new THREE.SpriteMaterial({
+                    map: texture,
+                    color: 0x445566,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                const sprite = new THREE.Sprite(material);
+                const scale = 40 + Math.random() * 40;
+                sprite.scale.set(scale, scale * 0.6, 1);
+                
+                sprite.position.set(
+                    (Math.random() - 0.5) * 400,
+                    20 + Math.random() * 20,
+                    -100 - Math.random() * 50
+                );
+                
+                clouds.push(sprite);
+                scene.add(sprite);
+            }
         }
 
-        function startGenesis() {
-            gsap.to(terrain.material.uniforms.uCreationTime, {
-                value: 300,
-                duration: 4,
-                ease: "power2.out",
-                onComplete: () => {
-                    gsap.to("#ui", { opacity: 1, duration: 1.5, delay: 0.5 });
+        function createBirds() {
+            // Simple V-shape bird geometry
+            const geometry = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                -0.5, 0, 0,
+                0, 0, 0.2,
+                0.5, 0, 0
+            ]);
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+            const material = new THREE.LineBasicMaterial({ color: 0x000000, opacity: 0.8, transparent: true });
+            birdInstances = new THREE.Group();
+
+            for (let i = 0; i < config.birdCount; i++) {
+                const bird = new THREE.Line(geometry, material);
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 50 + Math.random() * 30;
+                
+                bird.userData = {
+                    angle,
+                    radius,
+                    speed: 0.005 + Math.random() * 0.005,
+                    height: 15 + Math.random() * 10,
+                    offset: Math.random() * 100
+                };
+                
+                birdInstances.add(bird);
+            }
+            scene.add(birdInstances);
+        }
+
+        // --- Animation ---
+
+        function updateRain() {
+            const positions = rainParticles.geometry.attributes.position.array;
+            const velocities = rainParticles.userData.velocities;
+
+            for (let i = 0; i < config.rainCount; i++) {
+                positions[i * 3 + 1] -= velocities[i];
+                // Wind drift
+                positions[i * 3] -= 0.05;
+
+                if (positions[i * 3 + 1] < 0) {
+                    positions[i * 3 + 1] = 100;
+                    positions[i * 3] = (Math.random() - 0.5) * 200;
                 }
+            }
+            rainParticles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function updateBirds() {
+            const time = clock.getElapsedTime();
+            birdInstances.children.forEach((bird, i) => {
+                const data = bird.userData;
+                data.angle += data.speed;
+                
+                const x = Math.cos(data.angle) * data.radius;
+                const z = Math.sin(data.angle) * data.radius;
+                const y = data.height + Math.sin(time + data.offset) * 2;
+                
+                bird.position.set(x, y, z);
+                bird.lookAt(
+                    Math.cos(data.angle + 0.1) * data.radius,
+                    y,
+                    Math.sin(data.angle + 0.1) * data.radius
+                );
+                
+                // Wing flap animation
+                const wingSway = Math.sin(time * 10 + data.offset) * 0.2;
+                bird.rotation.z = wingSway;
             });
         }
 
-        function onMouseMove(e) {
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        function updateClouds() {
+            clouds.forEach((cloud, i) => {
+                cloud.position.x += 0.02;
+                if (cloud.position.x > 200) cloud.position.x = -200;
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
             
-            const cursor = document.getElementById('custom-cursor');
-            cursor.style.left = e.clientX + 'px';
-            cursor.style.top = e.clientY + 'px';
+            const time = clock.getElapsedTime();
+            
+            updateRain();
+            updateBirds();
+            updateClouds();
+
+            // Subtle camera movement
+            camera.position.x = Math.sin(time * 0.1) * 2;
+            camera.lookAt(0, 3, 0);
+
+            renderer.render(scene, camera);
         }
 
         function onWindowResize() {
@@ -362,38 +437,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const t = clock.getElapsedTime();
-            
-            water.material.uniforms.uTime.value = t;
-            
-            const posArr = rain.geometry.attributes.position.array;
-            for(let i=1; i<posArr.length; i+=3) {
-                posArr[i] -= 0.6;
-                if(posArr[i] < -2) posArr[i] = 60;
-            }
-            rain.geometry.attributes.position.needsUpdate = true;
-
-            // Subtle camera breathing
-            camera.position.y = 3 + Math.sin(t * 0.5) * 0.1;
-            camera.rotation.z = Math.sin(t * 0.3) * 0.01;
-
-            renderer.render(scene, camera);
-        }
-
-        window.enterApp = function() {
-            gsap.to(camera.position, {
-                z: -50,
-                duration: 1.5,
-                ease: "power3.in",
-                onComplete: () => {
-                    window.location.href = '/dashboard';
-                }
-            });
-            gsap.to("#ui", { opacity: 0, duration: 0.5 });
-        };
 
         init();
     </script>
